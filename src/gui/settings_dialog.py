@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget,
                                QVBoxLayout, QWidget)
 
-from ..gcode.parameters import PrintParameters
+from gcode.parameters import PrintParameters
 
 
 class ProcessSettingsDialog(QDialog):

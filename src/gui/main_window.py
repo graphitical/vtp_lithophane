@@ -8,9 +8,10 @@ from PySide6.QtCore import QDir, Qt, Slot
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout,
                                QMainWindow, QMessageBox, QSizePolicy, QWidget)
 
-from ..gcode.gcode_generator import generate_gcode
-from ..gcode.image_utils import LithophaneImage
-from ..gcode.parameters import PrintParameters
+from gcode.gcode_generator import generate_gcode
+from gcode.image_utils import LithophaneImage
+from gcode.parameters import PrintParameters
+
 from .gcode_view_widget import PlaceholderViewWidget
 from .image_view_widget import ImageViewWidget
 from .menu_bar import create_main_menu
