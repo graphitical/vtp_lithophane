@@ -6,7 +6,7 @@ A "Viscous Thread Printing" (VTP) Lithophane G-code Generator with a GUI. This t
 
 * Image import and display
 * (Planned) G-code generation for VTP lithophanes
-* (Planned) 3D preview of the toolpath using Polyscope
+* (Planned) 3D preview of the toolpath using PyVista
 * (Planned) Configurable processing settings
 
 ## Installation
@@ -38,10 +38,10 @@ It is highly recommended to use a Python virtual environment.
     ```
     This command installs the package in "editable" mode, meaning changes to the source code will be immediately effective without needing to reinstall.
 
-    **Note on Polyscope Installation:**
-    This project uses Polyscope for 3D visualization.
-    * The `pip install -e .` command should handle installing Polyscope via pip, which generally works.
-    * If you attempt to install Polyscope using Conda and encounter `LibMambaUnsatisfiableError` or similar Python version conflicts (e.g., if your Conda environment has a very new Python like 3.12+), it's because Conda's Polyscope packages might not yet support the latest Python versions. In such cases, relying on pip for Polyscope within a compatible Python environment (e.g., Python 3.9-3.11) is the recommended workaround. The `python_requires=">=3.9"` in `setup.py` reflects this.
+    **Note on 3D Visualization (PyVista):**
+    This project uses PyVista for 3D visualization.
+    * The `pip install -e .` command should handle installing PyVista and its dependencies, including `pyvistaqt` which is necessary for embedding in PySide6 applications.
+    * PyVista requires a working Qt binding (PySide6 is used by this project). Ensure your Python version is compatible (this project specifies >=3.9 in `setup.py`).
 
 ## Running the Application
 
@@ -62,7 +62,7 @@ vtp-lithophane-gui
         * `main_window.py`: Defines the main application window.
         * `menu_bar.py`: Logic for creating the application's menu bar.
         * `image_view_widget.py`: Widget for displaying the imported image.
-        * `polyscope_widget.py`: Widget for embedding the Polyscope 3D view.
+        * `pyvista_widget.py`: Widget for embedding the PyVista 3D view.
 
 ## License
 

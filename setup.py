@@ -11,28 +11,34 @@ setup(
     license="MIT",
     url="https://github.com/graphitical/vtp_lithophane",
 
-    # --- Package Discovery ---
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
 
-    # --- Dependencies ---
     install_requires=[
         "numpy",
         "Pillow",
-        "matplotlib",
-        "PySide6",
+        "matplotlib",  # For plotting (if needed)
+        "PySide6",    # For the GUI
+        "pyvista",    # For 3D visualization
+        # For PyVista's Qt integration (specifically QtInteractor)
+        "pyvistaqt",
     ],
 
-    # --- Python version requirement ---
     python_requires=">=3.9",
 
-    # --- Entry Points ---
-    # Add ability to run 'vtp-lithophane-gui' from the command line.
     entry_points={
         'console_scripts': [
             'vtp-lithophane-gui=gui.app:run',
         ],
     },
-    # --- Additional Metadata ---
-    # classifiers?
+
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: End Users/Desktop",
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Operating System :: OS Independent",
+        "Topic :: Multimedia :: Graphics :: 3D Modeling",
+        "Environment :: X11 Applications :: Qt",  # For PySide6/Qt
+    ],
 )

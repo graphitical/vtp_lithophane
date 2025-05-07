@@ -12,9 +12,9 @@ from gcode.gcode_generator import generate_gcode
 from gcode.image_utils import LithophaneImage
 from gcode.parameters import PrintParameters
 
-from .gcode_view_widget import PlaceholderViewWidget
 from .image_view_widget import ImageViewWidget
 from .menu_bar import create_main_menu
+from .pyvista_widget import PyVistaWidget
 from .settings_dialog import ProcessSettingsDialog
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -26,7 +26,7 @@ class DualViewWindow(QMainWindow):
         self.setWindowTitle("VTP Lithophane Designer")
         self.setGeometry(100, 100, 1200, 600)
 
-        self.current_image_path = None  # Still managed here to pass to image_view
+        self.current_image_path = None
         self.settings_dialog = None
 
         create_main_menu(self)
@@ -40,14 +40,12 @@ class DualViewWindow(QMainWindow):
         self.image_view = ImageViewWidget()  # Use the custom widget
         main_layout.addWidget(self.image_view, 1)
 
-        # --- Right View: Placeholder for Polyscope ---
-        self.placeholder_view = PlaceholderViewWidget(
-            "3D View (Polyscope later)")  # Use custom widget
-        main_layout.addWidget(self.placeholder_view, 1)
+        # --- Right View: Placeholder for PyVista ---
+        # Pass initial bed dimensions from settings to the PyVistaWidget
+        self.pyvista_view = PyVistaWidget()
+        main_layout.addWidget(self.pyvista_view, 1)
 
         central_widget.setLayout(main_layout)
-
-    # load_and_display_image method is removed, logic moved to ImageViewWidget
 
     def open_file(self):
         """Open a project file."""
