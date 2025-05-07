@@ -6,8 +6,8 @@ from enum import Enum
 import numpy as np
 from PIL import Image
 
-from image_utils import LithophaneImage
-from parameters import PrintParameters
+from .image_utils import LithophaneImage
+from .parameters import PrintParameters
 
 
 class GCodeType(Enum):
@@ -335,7 +335,7 @@ def _refine_segments_along_path(
         current_tool_pos_bp = target_end_path_bp.copy()
 
     else:
-        # --- Non-Adaptive Refinement Logic (Mimicking your previous successful version) ---
+        # --- Non-Adaptive Refinement Logic ---
         # Segments are cut at every sampling_step_mm
         distance_along_path = 0.0
         # current_tool_pos_bp is the start of the current small fixed-length segment
@@ -378,7 +378,7 @@ def _refine_segments_along_path(
                     f=segment_F,
                     comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
                 )
-                path_gcode_commands.append(gcommand)
+                path_gcode_commands.append(str(gcommand))
 
             # Move tool to end of this segment
             current_tool_pos_bp = segment_actual_end_bp.copy()
@@ -606,5 +606,5 @@ if __name__ == '__main__':
             os.remove(dummy_start_gcode_path)
         if os.path.exists(dummy_end_gcode_path):
             os.remove(dummy_end_gcode_path)
-        # Keep the generated gcode file for inspection:
-        # if os.path.exists(output_gcode_filename): os.remove(output_gcode_filename)
+        if os.path.exists(output_gcode_filename):
+            os.remove(output_gcode_filename)

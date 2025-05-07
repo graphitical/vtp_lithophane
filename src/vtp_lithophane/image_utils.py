@@ -3,7 +3,6 @@ import math
 import os
 
 import matplotlib.pyplot as plt
-import numpy as np  # Often useful with matplotlib and image data
 from PIL import Image
 
 
