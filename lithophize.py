@@ -6,9 +6,9 @@ import sys
 import time
 from pathlib import Path
 
-from vtp_lithophane.gcode_generator import generate_gcode
-from vtp_lithophane.image_utils import LithophaneImage
-from vtp_lithophane.parameters import PrintParameters
+from gcode.gcode_generator import generate_gcode
+from gcode.image_utils import LithophaneImage
+from gcode.parameters import PrintParameters
 
 
 def create_parser() -> argparse.ArgumentParser:
