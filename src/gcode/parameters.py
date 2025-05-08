@@ -41,19 +41,19 @@ class PrintParameters:
 
     # Optional/Advanced Parameters
     printer_bed_size_mm: tuple[float, float] = field(
-        default=(235.0, 235.0))  # Default to common bed size
+        default=(250.0, 210.0))  # Default to common bed size
 
     def __post_init__(self):
         """Perform validation after initialization."""
-        if not os.path.exists(self.image_filepath):
-            raise FileNotFoundError(
-                f"Image file not found: {self.image_filepath}")
-        if not os.path.exists(self.start_gcode_filepath):
-            raise FileNotFoundError(
-                f"Start Gcode file not found: {self.start_gcode_filepath}")
-        if not os.path.exists(self.end_gcode_filepath):
-            raise FileNotFoundError(
-                f"End Gcode file not found: {self.end_gcode_filepath}")
+        # if not os.path.exists(self.image_filepath):
+        #     raise FileNotFoundError(
+        #         f"Image file not found: {self.image_filepath}")
+        # if not os.path.exists(self.start_gcode_filepath):
+        #     raise FileNotFoundError(
+        #         f"Start Gcode file not found: {self.start_gcode_filepath}")
+        # if not os.path.exists(self.end_gcode_filepath):
+        #     raise FileNotFoundError(
+        #         f"End Gcode file not found: {self.end_gcode_filepath}")
 
         # Filament cross-sectional area
         self.A_F = math.pi * (self.D_F / 2) ** 2

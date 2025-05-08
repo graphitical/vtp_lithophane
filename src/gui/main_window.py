@@ -27,7 +27,8 @@ class DualViewWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 600)
 
         self.current_image_path = None
-        self.settings_dialog = None
+        self.settings_dialog = ProcessSettingsDialog(
+            parent=self, image_path="")
 
         create_main_menu(self)
 
@@ -41,8 +42,8 @@ class DualViewWindow(QMainWindow):
         main_layout.addWidget(self.image_view, 1)
 
         # --- Right View: Placeholder for PyVista ---
-        # Pass initial bed dimensions from settings to the PyVistaWidget
-        self.pyvista_view = PyVistaWidget()
+        params = self.settings_dialog.get_print_parameters()
+        self.pyvista_view = PyVistaWidget(params.printer_bed_size_mm)
         main_layout.addWidget(self.pyvista_view, 1)
 
         central_widget.setLayout(main_layout)
@@ -116,7 +117,7 @@ class DualViewWindow(QMainWindow):
             output_path = str(output_path)
 
             # Get the parameters from the settings dialog
-            params = self.settings_dialog.get_print_parameters(output_path)
+            params = self.settings_dialog.get_print_parameters()
 
             # Create LithophaneImage object
             lithophane_image = LithophaneImage(

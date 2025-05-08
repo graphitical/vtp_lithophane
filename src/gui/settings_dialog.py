@@ -335,26 +335,25 @@ class ProcessSettingsDialog(QDialog):
         self.save_settings()
         super().accept()
 
-    def get_print_parameters(self, output_filepath):
+    def get_print_parameters(self):
         """
         Creates and returns a PrintParameters object with the current settings.
 
         Args:
-            output_filepath: Path for the output G-code file
-
+            None
         Returns:
             A PrintParameters object
         """
-        # Validate file paths
-        if not os.path.exists(self.image_path.text()):
-            raise FileNotFoundError(
-                f"Image file not found: {self.image_path.text()}")
-        if not os.path.exists(self.start_gcode.text()):
-            raise FileNotFoundError(
-                f"Start G-code file not found: {self.start_gcode.text()}")
-        if not os.path.exists(self.end_gcode.text()):
-            raise FileNotFoundError(
-                f"End G-code file not found: {self.end_gcode.text()}")
+        # # Validate file paths
+        # if not os.path.exists(self.image_path.text()):
+        #     raise FileNotFoundError(
+        #         f"Image file not found: {self.image_path.text()}")
+        # if not os.path.exists(self.start_gcode.text()):
+        #     raise FileNotFoundError(
+        #         f"Start G-code file not found: {self.start_gcode.text()}")
+        # if not os.path.exists(self.end_gcode.text()):
+        #     raise FileNotFoundError(
+        #         f"End G-code file not found: {self.end_gcode.text()}")
 
         return PrintParameters(
             image_filepath=self.image_path.text(),

@@ -12,11 +12,11 @@ class PyVistaWidget(QWidget):
     A QWidget that embeds a PyVista 3D scene, displaying a representation of a print bed.
     """
 
-    def __init__(self, bed_x_mm=100, bed_y_mm=100, parent=None):  # Added bed dimensions
+    def __init__(self, bed_size_mm=(100, 100), parent=None):  # Added bed dimensions
         super().__init__(parent)
 
-        self.bed_x_mm = bed_x_mm
-        self.bed_y_mm = bed_y_mm
+        self.bed_x_mm = bed_size_mm[0]
+        self.bed_y_mm = bed_size_mm[1]
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding,
                            QSizePolicy.Policy.Expanding)
