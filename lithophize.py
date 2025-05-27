@@ -4,7 +4,6 @@ import argparse
 import os
 import sys
 import time
-from pathlib import Path
 
 from gcode.gcode_generator import generate_gcode
 from gcode.image_utils import LithophaneImage
@@ -89,8 +88,8 @@ def validate_files(args) -> None:
     """Validate that all required files exist."""
     files_to_check = [
         ('image', args.image),
-        ('start G-code', args.start_gcode),
-        ('end G-code', args.end_gcode)
+        # ('start G-code', args.start_gcode),
+        # ('end G-code', args.end_gcode)
     ]
 
     for file_type, file_path in files_to_check:

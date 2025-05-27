@@ -420,10 +420,12 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             gcode_lines.extend([line.strip() for line in f if line.strip()])
         gcode_lines.append("; --- Start Gcode Ends ---")
     except IOError as e:
-        print(f"Error reading start Gcode file: {e}")
+        if os.path.exists(params.start_gcode_filepath):
+            print(f"Error reading start Gcode file: {e}")
+        else:
+            print("No Start Gcode")
 
     current_e = 0.0
-    gcode_lines.append("G92 E0 ; Reset extruder position")
 
     # Calculate offset to center the print volume on the build plate
     physical_print_width = lithophane_image.physical_print_width_mm
@@ -503,7 +505,10 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         with open(params.end_gcode_filepath, 'r') as f:
             gcode_lines.extend([line.strip() for line in f if line.strip()])
     except IOError as e:
-        print(f"Error reading end Gcode file: {e}")
+        if os.path.exists(params.end_gcode_filepath):
+            print(f"Error reading end Gcode file: {e}")
+        else:
+            print("No End Gcode")
 
     return gcode_lines
 
