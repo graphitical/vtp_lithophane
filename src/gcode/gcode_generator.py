@@ -374,7 +374,8 @@ def _refine_segments_along_path(
                     x=segment_actual_end_bp[0],
                     y=segment_actual_end_bp[1],
                     z=segment_Z,               # Z is based on value at segment_actual_end_bp
-                    e=current_e_absolute,      # Use absolute E
+                    # e=current_e_absolute,      # Use absolute E
+                    e=delta_E,
                     f=segment_F,
                     comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
                 )
