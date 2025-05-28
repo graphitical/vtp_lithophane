@@ -227,8 +227,8 @@ def _refine_segments_along_path(
     params: PrintParameters,
     lithophane_image: LithophaneImage,
     # Start of the entire path segment from toolpath generator
-    start_point_path_bp: tuple[float, float],
-    end_point_path_bp: tuple[float, float],   # End of the entire path segment
+    start_point_path_bp: np.ndarray,
+    end_point_path_bp: np.ndarray,   # End of the entire path segment
     layer_base_z: float,
     offset_x: float,
     offset_y: float,
@@ -313,7 +313,7 @@ def _refine_segments_along_path(
                     current_e_absolute += delta_E
 
                     gcommand = GCommand(
-                        type=1,
+                        type=GCodeType.G1,
                         x=segment_actual_end_bp[0],
                         y=segment_actual_end_bp[1],
                         z=segment_Z,
@@ -343,7 +343,7 @@ def _refine_segments_along_path(
         while distance_along_path < path_length_mm - epsilon:
             # seg_start_bp_non_adaptive = current_tool_pos_bp.copy() # Not strictly needed for 't' calc anymore
 
-            actual_step_taken = min(
+            actual_step_taken = np.minimum(
                 sampling_step_mm, path_length_mm - distance_along_path)
             segment_actual_end_bp = current_tool_pos_bp + \
                 path_unit_vec_bp * actual_step_taken
@@ -370,7 +370,7 @@ def _refine_segments_along_path(
                 current_e_absolute += delta_E  # Update total E
 
                 gcommand = GCommand(
-                    type=1,
+                    type=GCodeType.G1,
                     x=segment_actual_end_bp[0],
                     y=segment_actual_end_bp[1],
                     z=segment_Z,               # Z is based on value at segment_actual_end_bp
@@ -435,7 +435,8 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
 
     # Initial position is assumed to be (0,0) after homing and initial Z lift from start gcode
     # The very first move will be to the start of the first pass at the calculated Z.
-    current_pos_bp = [0.0, 0.0]  # This will be updated after the first move
+    # This will be updated after the first move
+    current_pos_bp = np.array([0.0, 0.0])
 
     # --- Generate all passes first, then iterate to generate Gcode ---
     all_passes_relative = _generate_entire_toolpath(
@@ -446,12 +447,12 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         layer_base_z = layer * params.dz_mm
 
         # Apply offset to pass start and end points (build plate coordinates)
-        start_pt_bp = (
+        start_pt_bp = np.array([
             start_pt_rel[0] + offset_x,
-            start_pt_rel[1] + offset_y)
-        end_pt_bp = (
+            start_pt_rel[1] + offset_y])
+        end_pt_bp = np.array([
             end_pt_rel[0] + offset_x,
-            end_pt_rel[1] + offset_y)
+            end_pt_rel[1] + offset_y])
 
         # --- Handle transition to the start of the current pass (G1) ---
         # If it's the very first pass of the entire print (global index 0),
@@ -476,7 +477,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             # For the very first pass, the start gcode positions the nozzle.
             # The first generated G1 command will be for the first segment of the first pass.
             # current_pos_bp needs to be set to the start of the first pass for _generate_segments_along_path to work correctly.
-            current_pos_bp = list(start_pt_bp)
+            current_pos_bp = start_pt_bp
 
         # --- Generate segments along the pass ---
         # Break the long pass into segments of refinement_length_mm
@@ -515,11 +516,14 @@ if __name__ == '__main__':
     dummy_image_path = "dummy_image_gen_test.png"
     dummy_start_gcode_path = "dummy_start_gen_test.gcode"
     dummy_end_gcode_path = "dummy_end_gen_gen_test.gcode"
+    output_gcode_filename = ''
 
     # Create a dummy binary image (white with a black square)
     dummy_img_size_px = (100, 100)  # Example image size
     dummy_img_data = Image.new('L', dummy_img_size_px, color=255)
     pixels = dummy_img_data.load()
+    if pixels is None:
+        raise RuntimeError("Failes to load pixel access object.")
     # Draw a black square in the center
     square_size_px = (20, 20)
     square_start_x = (dummy_img_size_px[0] - square_size_px[0]) // 2
@@ -606,5 +610,5 @@ if __name__ == '__main__':
             os.remove(dummy_start_gcode_path)
         if os.path.exists(dummy_end_gcode_path):
             os.remove(dummy_end_gcode_path)
-        if os.path.exists(output_gcode_filename):
+        if output_gcode_filename and os.path.exists(output_gcode_filename):
             os.remove(output_gcode_filename)
