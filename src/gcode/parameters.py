@@ -43,6 +43,8 @@ class PrintParameters:
     printer_bed_size_mm: tuple[float, float] = field(
         default=(250.0, 210.0))  # Default to common bed size
 
+    param_change_threshold: float = field(default=0.05)
+
     def __post_init__(self):
         """Perform validation after initialization."""
         # if not os.path.exists(self.image_filepath):
@@ -105,10 +107,7 @@ if __name__ == '__main__':
             h_star_ld=10.0,
             alpha=1.18,  # Example value from paper
             D_N=0.4,    # Example nozzle diameter
-            # Example 1.75mm filament area - Using math.pi
-            A_F=math.pi * (1.75/2)**2,
-            # Example nozzle area with alpha - Using math.pi
-            A_T=math.pi * (0.4/2)**2 * 1.18,
+            D_F=1.75,
             e_dot=5.0,  # Example flow rate mm/min
             line_spacing_mm=0.5,
             sampling_resolution_mm=0.25,  # Updated parameter name
@@ -130,7 +129,7 @@ if __name__ == '__main__':
         invalid_params = PrintParameters(
             image_filepath="non_existent_image.png",  # This file does not exist
             physical_print_width_mm=50.0, num_layers=100, v_star_hd=0.2, v_star_ld=0.8,
-            h_star_hd=5.0, h_star_ld=10.0, alpha=1.0, D_N=0.4, A_F=1.0, A_T=1.0, e_dot=1.0,
+            h_star_hd=5.0, h_star_ld=10.0, alpha=1.0, D_N=0.4, e_dot=1.0,
             line_spacing_mm=0.5, sampling_resolution_mm=0.25, dz_mm=0.2,  # Updated parameter name
             start_gcode_filepath="dummy_start.gcode", end_gcode_filepath="dummy_end.gcode"
         )

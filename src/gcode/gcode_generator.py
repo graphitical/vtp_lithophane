@@ -223,6 +223,9 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
     return paths_list
 
 
+_parameter_state = {'prev_v_star': None, 'prev_h_star': None}
+
+
 def _refine_segments_along_path(
     params: PrintParameters,
     lithophane_image: LithophaneImage,
@@ -368,26 +371,52 @@ def _refine_segments_along_path(
                 v_star = r * params.v_star_ld + (1 - r) * params.v_star_hd
                 h_star = g * params.h_star_ld + (1 - g) * params.h_star_hd
 
-                segment_Z = layer_base_z + params.alpha * h_star * params.D_N
-                segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
-                             if abs(v_star) > epsilon else params.f_travel)
+                # Check if parameters changed significantly from last point
+                param_changed = False
+                if hasattr(params, 'param_change_threshold') and params.param_change_threshold > 0:
+                    if _parameter_state['prev_v_star'] is not None:
+                        v_change = abs(
+                            v_star - _parameter_state['prev_v_star'])
+                        h_change = abs(
+                            h_star - _parameter_state['prev_h_star'])
+                        if v_change > params.param_change_threshold or h_change > params.param_change_threshold:
+                            param_changed = True
+                            # Insert G0 travel move with high speed
+                            travel_command = GCommand(
+                                type=GCodeType.G0,
+                                x=segment_actual_end_bp[0],
+                                y=segment_actual_end_bp[1],
+                                z=layer_base_z + params.alpha * h_star * params.D_N,
+                                f=params.f_travel,
+                                comment=f"Parameter change travel move: V* {_parameter_state['prev_v_star']:.2f}->{v_star:.2f}, H* {_parameter_state['prev_h_star']:.2f}-> {h_star:.2f}"
+                            )
+                            path_gcode_commands.append(str(travel_command))
 
-                delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
-                           if abs(v_star) > epsilon else 0.0)
+                # Update state
+                _parameter_state['prev_v_star'] = v_star
+                _parameter_state['prev_h_star'] = h_star
 
-                current_e_absolute += delta_E  # Update total E
+                # Only perform extrusion if not a parameter change travel move
+                if not param_changed:
+                    segment_Z = layer_base_z + params.alpha * h_star * params.D_N
+                    segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
+                                 if abs(v_star) > epsilon else params.f_travel)
 
-                gcommand = GCommand(
-                    type=GCodeType.G1,
-                    x=segment_actual_end_bp[0],
-                    y=segment_actual_end_bp[1],
-                    z=segment_Z,               # Z is based on value at segment_actual_end_bp
-                    # e=current_e_absolute,      # Use absolute E
-                    e=delta_E,
-                    f=segment_F,
-                    comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
-                )
-                path_gcode_commands.append(str(gcommand))
+                    delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
+                               if abs(v_star) > epsilon else 0.0)
+
+                    current_e_absolute += delta_E
+
+                    gcommand = GCommand(
+                        type=GCodeType.G1,
+                        x=segment_actual_end_bp[0],
+                        y=segment_actual_end_bp[1],
+                        z=segment_Z,
+                        e=delta_E,
+                        f=segment_F,
+                        comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
+                    )
+                    path_gcode_commands.append(str(gcommand))
 
             # Move tool to end of this segment
             current_tool_pos_bp = segment_actual_end_bp.copy()

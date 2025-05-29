@@ -108,6 +108,8 @@ class LithophaneImage:
             round(query_x_mm / self.physical_print_width_mm * (img_width_px - 1)))
         pixel_y = int(
             round(query_y_mm / self.physical_print_height_mm * (img_height_px - 1)))
+        # flip y because images have inverted coordinates
+        pixel_y = img_height_px - pixel_y
 
         pixel_x = min(max(pixel_x, 0), img_width_px - 1)
         pixel_y = min(max(pixel_y, 0), img_height_px - 1)
