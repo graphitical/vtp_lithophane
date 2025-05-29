@@ -1,5 +1,4 @@
 # vtp_lithophane/gcode_generator.py
-import math
 import os
 from enum import Enum
 
