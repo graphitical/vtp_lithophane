@@ -28,7 +28,7 @@ class GCommand:
         self.comment = comment
 
     def __str__(self):
-        command_parts = [f"G{self.type}"]
+        command_parts = [f"{self.type.name}"]
 
         # Add parameters if they are not None
         # Use appropriate formatting for float values
@@ -223,12 +223,15 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
     return paths_list
 
 
+_parameter_state = {'prev_v_star': None, 'prev_h_star': None}
+
+
 def _refine_segments_along_path(
     params: PrintParameters,
     lithophane_image: LithophaneImage,
     # Start of the entire path segment from toolpath generator
-    start_point_path_bp: tuple[float, float],
-    end_point_path_bp: tuple[float, float],   # End of the entire path segment
+    start_point_path_bp: np.ndarray,
+    end_point_path_bp: np.ndarray,   # End of the entire path segment
     layer_base_z: float,
     offset_x: float,
     offset_y: float,
@@ -313,7 +316,7 @@ def _refine_segments_along_path(
                     current_e_absolute += delta_E
 
                     gcommand = GCommand(
-                        type=1,
+                        type=GCodeType.G1,
                         x=segment_actual_end_bp[0],
                         y=segment_actual_end_bp[1],
                         z=segment_Z,
@@ -343,7 +346,7 @@ def _refine_segments_along_path(
         while distance_along_path < path_length_mm - epsilon:
             # seg_start_bp_non_adaptive = current_tool_pos_bp.copy() # Not strictly needed for 't' calc anymore
 
-            actual_step_taken = min(
+            actual_step_taken = np.minimum(
                 sampling_step_mm, path_length_mm - distance_along_path)
             segment_actual_end_bp = current_tool_pos_bp + \
                 path_unit_vec_bp * actual_step_taken
@@ -351,34 +354,69 @@ def _refine_segments_along_path(
             seg_length_mm = actual_step_taken
 
             if seg_length_mm > epsilon:
-                # Determine 't' based on the image value AT THE END of this small segment
-                t = lithophane_image.get_pixel_value(
+                # Cap the query point to the physical bounds
+                query_point = segment_actual_end_bp - offset_bp_vec
+                query_point[0] = min(
+                    max(query_point[0], 0.),
+                    lithophane_image.physical_print_width_mm)
+                query_point[1] = min(
+                    max(query_point[1], 0.),
+                    lithophane_image.physical_print_height_mm)
+                # We use the channels of the image to scale the V* and H* independently. Red is for V*, Green is for H*. I'm holding onto Blue for something else, possibly dL later on, but I need to work out how to integrate that.
+                r, g, _ = lithophane_image.get_pixel_value(
                     # Sample at segment's END
-                    *(segment_actual_end_bp - offset_bp_vec), binarize=True
+                    *query_point, binarize=False
                 )
 
-                v_star = t * params.v_star_ld + (1 - t) * params.v_star_hd
-                h_star = t * params.h_star_ld + (1 - t) * params.h_star_hd
+                v_star = r * params.v_star_ld + (1 - r) * params.v_star_hd
+                h_star = g * params.h_star_ld + (1 - g) * params.h_star_hd
 
-                segment_Z = layer_base_z + params.alpha * h_star * params.D_N
-                segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
-                             if abs(v_star) > epsilon else params.f_travel)
+                # Check if parameters changed significantly from last point
+                param_changed = False
+                if hasattr(params, 'param_change_threshold') and params.param_change_threshold > 0:
+                    if _parameter_state['prev_v_star'] is not None:
+                        v_change = abs(
+                            v_star - _parameter_state['prev_v_star'])
+                        h_change = abs(
+                            h_star - _parameter_state['prev_h_star'])
+                        if v_change > params.param_change_threshold or h_change > params.param_change_threshold:
+                            param_changed = True
+                            # Insert G0 travel move with high speed
+                            travel_command = GCommand(
+                                type=GCodeType.G0,
+                                x=segment_actual_end_bp[0],
+                                y=segment_actual_end_bp[1],
+                                z=layer_base_z + params.alpha * h_star * params.D_N,
+                                f=params.f_travel,
+                                comment=f"Parameter change travel move: V* {_parameter_state['prev_v_star']:.2f}->{v_star:.2f}, H* {_parameter_state['prev_h_star']:.2f}-> {h_star:.2f}"
+                            )
+                            path_gcode_commands.append(str(travel_command))
 
-                delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
-                           if abs(v_star) > epsilon else 0.0)
+                # Update state
+                _parameter_state['prev_v_star'] = v_star
+                _parameter_state['prev_h_star'] = h_star
 
-                current_e_absolute += delta_E  # Update total E
+                # Only perform extrusion if not a parameter change travel move
+                if not param_changed:
+                    segment_Z = layer_base_z + params.alpha * h_star * params.D_N
+                    segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
+                                 if abs(v_star) > epsilon else params.f_travel)
 
-                gcommand = GCommand(
-                    type=1,
-                    x=segment_actual_end_bp[0],
-                    y=segment_actual_end_bp[1],
-                    z=segment_Z,               # Z is based on value at segment_actual_end_bp
-                    e=current_e_absolute,      # Use absolute E
-                    f=segment_F,
-                    comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
-                )
-                path_gcode_commands.append(str(gcommand))
+                    delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
+                               if abs(v_star) > epsilon else 0.0)
+
+                    current_e_absolute += delta_E
+
+                    gcommand = GCommand(
+                        type=GCodeType.G1,
+                        x=segment_actual_end_bp[0],
+                        y=segment_actual_end_bp[1],
+                        z=segment_Z,
+                        e=delta_E,
+                        f=segment_F,
+                        comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
+                    )
+                    path_gcode_commands.append(str(gcommand))
 
             # Move tool to end of this segment
             current_tool_pos_bp = segment_actual_end_bp.copy()
@@ -437,7 +475,8 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
 
     # Initial position is assumed to be (0,0) after homing and initial Z lift from start gcode
     # The very first move will be to the start of the first pass at the calculated Z.
-    current_pos_bp = [0.0, 0.0]  # This will be updated after the first move
+    # This will be updated after the first move
+    current_pos_bp = np.array([0.0, 0.0])
 
     # --- Generate all passes first, then iterate to generate Gcode ---
     all_passes_relative = _generate_entire_toolpath(
@@ -448,12 +487,12 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         layer_base_z = layer * params.dz_mm
 
         # Apply offset to pass start and end points (build plate coordinates)
-        start_pt_bp = (
+        start_pt_bp = np.array([
             start_pt_rel[0] + offset_x,
-            start_pt_rel[1] + offset_y)
-        end_pt_bp = (
+            start_pt_rel[1] + offset_y])
+        end_pt_bp = np.array([
             end_pt_rel[0] + offset_x,
-            end_pt_rel[1] + offset_y)
+            end_pt_rel[1] + offset_y])
 
         # --- Handle transition to the start of the current pass (G1) ---
         # If it's the very first pass of the entire print (global index 0),
@@ -478,7 +517,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             # For the very first pass, the start gcode positions the nozzle.
             # The first generated G1 command will be for the first segment of the first pass.
             # current_pos_bp needs to be set to the start of the first pass for _generate_segments_along_path to work correctly.
-            current_pos_bp = list(start_pt_bp)
+            current_pos_bp = start_pt_bp
 
         # --- Generate segments along the pass ---
         # Break the long pass into segments of refinement_length_mm
@@ -520,11 +559,14 @@ if __name__ == '__main__':
     dummy_image_path = "dummy_image_gen_test.png"
     dummy_start_gcode_path = "dummy_start_gen_test.gcode"
     dummy_end_gcode_path = "dummy_end_gen_gen_test.gcode"
+    output_gcode_filename = ''
 
     # Create a dummy binary image (white with a black square)
     dummy_img_size_px = (100, 100)  # Example image size
     dummy_img_data = Image.new('L', dummy_img_size_px, color=255)
     pixels = dummy_img_data.load()
+    if pixels is None:
+        raise RuntimeError("Failes to load pixel access object.")
     # Draw a black square in the center
     square_size_px = (20, 20)
     square_start_x = (dummy_img_size_px[0] - square_size_px[0]) // 2
@@ -591,7 +633,7 @@ if __name__ == '__main__':
         generated_gcode = generate_gcode(test_params, test_lithophane_image)
 
         # Save generated Gcode to a file
-        output_gcode_filename = "dummy_lithophane_output.gcode"
+        output_gcode_filename = "gcode/outputs/dummy_lithophane_output.gcode"
         with open(output_gcode_filename, "w") as f:
             for gcommand in generated_gcode:
                 f.write(str(gcommand) + "\n")
@@ -611,5 +653,5 @@ if __name__ == '__main__':
             os.remove(dummy_start_gcode_path)
         if os.path.exists(dummy_end_gcode_path):
             os.remove(dummy_end_gcode_path)
-        if os.path.exists(output_gcode_filename):
-            os.remove(output_gcode_filename)
+        # if output_gcode_filename and os.path.exists(output_gcode_filename):
+            # os.remove(output_gcode_filename)

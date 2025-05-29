@@ -77,6 +77,10 @@ class DualViewWindow(QMainWindow):
             # Delegate to ImageViewWidget
             self.image_view.set_image_path(self.current_image_path)
 
+            if hasattr(self, 'settings_dialog') and self.settings_dialog:
+                self.settings_dialog.image_path.setText(
+                    self.current_image_path)
+
     def open_process_settings(self):
         """Open the process settings dialog."""
         if not self.settings_dialog:
