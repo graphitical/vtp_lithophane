@@ -48,11 +48,11 @@ class ProcessSettingsDialog(QDialog):
         # Image and Dimensions Fields
         self.image_path = QLineEdit()
         self.image_path.setReadOnly(True)
-        browse_image_btn = QPushButton("Browse...")
-        browse_image_btn.clicked.connect(self.browse_image)
+        # browse_image_btn = QPushButton("Browse...")
+        # browse_image_btn.clicked.connect(self.browse_image)
         image_layout = QHBoxLayout()
         image_layout.addWidget(self.image_path)
-        image_layout.addWidget(browse_image_btn)
+        # image_layout.addWidget(browse_image_btn)
         process_layout.addRow("Image File:", image_layout)
 
         self.width = QDoubleSpinBox()
