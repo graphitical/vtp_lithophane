@@ -55,11 +55,11 @@ class ProcessSettingsDialog(QDialog):
         # image_layout.addWidget(browse_image_btn)
         process_layout.addRow("Image File:", image_layout)
 
-        self.width = QDoubleSpinBox()
-        self.width.setRange(1, 1000)
-        self.width.setValue(100)
-        self.width.setSuffix(" mm")
-        process_layout.addRow("Physical Width:", self.width)
+        self.physical_width = QDoubleSpinBox()
+        self.physical_width.setRange(1, 1000)
+        self.physical_width.setValue(100)
+        self.physical_width.setSuffix(" mm")
+        process_layout.addRow("Physical Width:", self.physical_width)
 
         self.sampling_resolution = QDoubleSpinBox()
         self.sampling_resolution.setRange(0.1, 10.0)
@@ -215,34 +215,48 @@ class ProcessSettingsDialog(QDialog):
 
         # Button Box
         self.button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         main_layout.addWidget(self.button_box)
 
     def browse_image(self):
         """Open file dialog to select an image file."""
+        # Get last directory from QSettings
+        last_dir = str(self.settings.value(
+            "last_image_directory", QDir.homePath()))
+
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Image File", QDir.homePath(),
+            self, "Select Image File", last_dir,
             "Images (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"
         )
         if file_path:
+            # Save directory for next time
+            self.settings.setValue(
+                "last_image_directory", os.path.dirname(file_path))
             self.image_path.setText(file_path)
             # Emit signal to notify parent about the selected image
             self.image_selected.emit(file_path)
 
     def browse_file(self, line_edit, title):
         """Open file dialog to select any file."""
+        # Get last directory, defaulting to home if not set
+        last_dir = str(self.settings.value(
+            "last_generic_file_directory", QDir.homePath()))
+
         file_path, _ = QFileDialog.getOpenFileName(
-            self, title, QDir.homePath(), "All Files (*.*)"
+            self, title, last_dir, "All Files (*.*)"
         )
         if file_path:
+            # Save directory for next time
+            self.settings.setValue(
+                "last_generic_file_directory", os.path.dirname(file_path))
             line_edit.setText(file_path)
 
     def save_settings(self):
         """Save settings to QSettings."""
         self.settings.setValue("image_path", self.image_path.text())
-        self.settings.setValue("physical_width", self.width.value())
+        self.settings.setValue("physical_width", self.physical_width.value())
         self.settings.setValue("layers", self.layers.value())
         self.settings.setValue("v_star_hd", self.v_star_hd.value())
         self.settings.setValue("v_star_ld", self.v_star_ld.value())
@@ -272,7 +286,8 @@ class ProcessSettingsDialog(QDialog):
         if self.settings.contains("image_path"):
             self.image_path.setText(self.settings.value("image_path"))
         if self.settings.contains("physical_width"):
-            self.width.setValue(float(self.settings.value("physical_width")))
+            self.physical_width.setValue(
+                float(self.settings.value("physical_width")))
         if self.settings.contains("layers"):
             self.layers.setValue(int(self.settings.value("layers")))
         if self.settings.contains("v_star_hd"):
@@ -318,13 +333,13 @@ class ProcessSettingsDialog(QDialog):
         if self.settings.contains("bed_height"):
             self.bed_height.setValue(float(self.settings.value("bed_height")))
 
-        start_gcode_value = self.settings.value("start_gcode", "")
+        start_gcode_value = str(self.settings.value("start_gcode", ""))
         if start_gcode_value:
             self.start_gcode.setText(start_gcode_value)
         else:
             self.start_gcode.setText("gcode/templates/default_start.gcode")
 
-        end_gcode_value = self.settings.value("end_gcode", "")
+        end_gcode_value = str(self.settings.value("end_gcode", ""))
         if end_gcode_value:
             self.end_gcode.setText(end_gcode_value)
         else:
@@ -357,7 +372,7 @@ class ProcessSettingsDialog(QDialog):
 
         return PrintParameters(
             image_filepath=self.image_path.text(),
-            physical_print_width_mm=self.width.value(),
+            physical_print_width_mm=self.physical_width.value(),
             num_layers=self.layers.value(),
             v_star_hd=self.v_star_hd.value(),
             v_star_ld=self.v_star_ld.value(),
