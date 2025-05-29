@@ -1,4 +1,4 @@
-# vtp_lithophane/gcode_generator.py
+# vtp_lithophane/gcode/gcode_generator.py
 import os
 from enum import Enum
 
@@ -9,13 +9,63 @@ from .image_utils import LithophaneImage
 from .parameters import PrintParameters
 
 
+class Point2D:
+    def __init__(self, x, y):
+        self._arr = np.array([x, y], dtype=float)
+
+    def __array__(self, dtype=None):
+        return self._arr.astype(dtype) if dtype else self._arr
+
+    def __add__(self, other):
+        return Point2D(*(self._arr + np.asarray(other)))
+
+    def __sub__(self, other):
+        return Point2D(*(self._arr - np.asarray(other)))
+
+    def __mul__(self, other):
+        return Point2D(*(self._arr * np.asarray(other)))
+
+    def __truediv__(self, other):
+        return Point2D(*(self._arr / np.asarray(other)))
+
+    def __getitem__(self, idx):
+        return self._arr[idx]
+
+    def __setitem__(self, idx, val):
+        self._arr[idx] = val
+
+    def __repr__(self):
+        return f"Point2D({self._arr[0]}, {self._arr[1]})"
+
+    @property
+    def x(self):
+        """Returns the X coordinate."""
+        return self._arr[0]
+
+    @property
+    def y(self):
+        """Returns the Y coordinate."""
+        return self._arr[1]
+
+    def copy(self):
+        """Returns a copy of the Point2D instance."""
+        return Point2D(*self._arr)
+
+
 class GCodeType(Enum):
     G0 = 0  # Travel move
     G1 = 1  # Linear move with extrusion
 
 
 class GCommand:
-    def __init__(self, type=GCodeType.G1, x=None, y=None, z=None, e=None, f=None, comment=''):
+    def __init__(self,
+                 type: GCodeType = GCodeType.G1,
+                 x: float | None = None,
+                 y: float | None = None,
+                 z: float | None = None,
+                 e: float | None = None,
+                 f: float | None = None,
+                 comment: str = ''):
         self.type = type
         self.values = dict(
             X=x,
@@ -52,27 +102,35 @@ class GCommand:
         return ' '.join(command_parts)
 
 
-def _calculate_build_plate_offset(params: PrintParameters, physical_print_width: float, physical_print_height: float) -> tuple[float, float]:
+def _calculate_build_plate_offset(params: PrintParameters,
+                                  physical_print_width: float,
+                                  physical_print_height: float) -> Point2D:
     """Calculates the X and Y offset to center the print volume on the build plate."""
     print("Determining build plate dimensions")
     build_plate_width, build_plate_height = params.printer_bed_size_mm
     offset_x = (build_plate_width - physical_print_width) / 2.0
     offset_y = (build_plate_height - physical_print_height) / 2.0
-    return offset_x, offset_y
+    return Point2D(offset_x, offset_y)
     # return 0., 0. # For testing only
 
 
 def _add_segment_if_moved(
-    segments_list: list, layer_idx: int, pt_start_tuple: tuple[float, float],
-    pt_end_tuple: tuple[float, float], epsilon: float
+    segments_list: list,
+    layer_idx: int,
+    start_pt: Point2D,
+    end_pt: Point2D,
+    epsilon: float
 ):
-    """Helper to add a segment only if it represents actual movement."""
-    if np.linalg.norm(np.array(pt_end_tuple) - np.array(pt_start_tuple)) > epsilon:
-        segments_list.append((layer_idx, pt_start_tuple, pt_end_tuple))
+    """
+    Helper to add a segment only if it represents actual movement.
+    Modifies segments_list in place.
+    """
+    if np.linalg.norm(end_pt - start_pt) > epsilon:
+        segments_list.append((layer_idx, start_pt, end_pt))
 
 
 def _execute_single_raster_pass(
-    tool_pos_current: np.ndarray,
+    tool_pos_current: Point2D,
     is_x_primary_pass: bool,
     physical_print_width: float,
     physical_print_height: float,
@@ -80,10 +138,11 @@ def _execute_single_raster_pass(
     overall_scan_direction_fwd: bool,
     layer_idx: int,
     epsilon: float
-) -> tuple[np.ndarray, list[tuple[int, tuple[float, float], tuple[float, float]]]]:
+) -> tuple[Point2D, list[tuple[int, Point2D, Point2D]]]:
     """Generates segments for one complete raster fill pass."""
     segments_this_pass = []
-    tool_pos = tool_pos_current.copy()
+    # Create a mutable copy of the current tool position
+    tool_pos_arr = tool_pos_current.copy()
 
     # Define primary/secondary axis properties based on pass type
     if is_x_primary_pass:
@@ -93,7 +152,16 @@ def _execute_single_raster_pass(
         primary_max, secondary_max = physical_print_height, physical_print_width
         primary_axis_idx, secondary_axis_idx = 1, 0
 
-    scan_coord_on_secondary = tool_pos[secondary_axis_idx]
+    # Adjust primary and secondary max values to be multiples of short_step
+    # We do this so that the toolpath aligns with the step size in both directions.
+    # This implicitly happens for the secondary axis already because of the stepover logic when next_scan_coord_on_secondary is calculated and the next step is out of bounds, but we do it for the primary axis too to ensure consistency.
+    primary_max = np.floor(primary_max / short_step) * short_step
+    secondary_max = np.floor(secondary_max / short_step) * short_step
+    if primary_max <= epsilon or secondary_max <= epsilon:
+        print("Warning: Primary or secondary dimension is too small or zero.")
+        return tool_pos_current, segments_this_pass
+
+    scan_coord_on_secondary = tool_pos_arr[secondary_axis_idx]
 
     # Determine step direction along the secondary axis
     if secondary_max <= epsilon:  # Negligible secondary dimension
@@ -118,10 +186,10 @@ def _execute_single_raster_pass(
         # 1. Align tool to current scan_coord_on_secondary (if needed after conceptual step)
         #    This ensures tool_pos[secondary_axis_idx] is correctly set for the scan.
         #    Typically, after the first iteration, tool_pos is already aligned by the stepover move.
-        pt_before_align = tuple(tool_pos)
-        tool_pos[secondary_axis_idx] = scan_coord_on_secondary
+        pt_before_align = Point2D(*tool_pos_arr)
+        tool_pos_arr[secondary_axis_idx] = scan_coord_on_secondary
         _add_segment_if_moved(segments_this_pass, layer_idx,
-                              pt_before_align, tuple(tool_pos), epsilon)
+                              pt_before_align, Point2D(*tool_pos_arr), epsilon)
 
         # 2. Perform the primary scan line
         current_line_is_fwd_in_serpentine = (line_in_pass_idx % 2 == 0)
@@ -129,10 +197,10 @@ def _execute_single_raster_pass(
             overall_scan_direction_fwd == current_line_is_fwd_in_serpentine)
         target_primary_coord = primary_max if effective_scan_fwd_primary else 0.0
 
-        pt_before_scan = tuple(tool_pos)
-        tool_pos[primary_axis_idx] = target_primary_coord
+        pt_before_scan = Point2D(*tool_pos_arr)
+        tool_pos_arr[primary_axis_idx] = target_primary_coord
         _add_segment_if_moved(segments_this_pass, layer_idx,
-                              pt_before_scan, tuple(tool_pos), epsilon)
+                              pt_before_scan, Point2D(*tool_pos_arr), epsilon)
 
         line_in_pass_idx += 1
 
@@ -142,39 +210,48 @@ def _execute_single_raster_pass(
                            (step_dir_secondary <
                             0 and next_scan_coord_on_secondary < 0 - epsilon)
 
-        if is_out_of_bounds or (secondary_max <= epsilon and line_in_pass_idx > 0):
+        if is_out_of_bounds or (secondary_max <= epsilon and line_in_pass_idx > 1):
             break  # Done with this raster pass
 
         # 4. Make the stepover move
-        pt_before_stepover = tuple(tool_pos)
+        pt_before_stepover = Point2D(*tool_pos_arr)
         scan_coord_on_secondary = next_scan_coord_on_secondary
         # Update tool's actual position
-        tool_pos[secondary_axis_idx] = scan_coord_on_secondary
-        _add_segment_if_moved(segments_this_pass, layer_idx,
-                              pt_before_stepover, tuple(tool_pos), epsilon)
+        tool_pos_arr[secondary_axis_idx] = scan_coord_on_secondary
+        _add_segment_if_moved(segments_this_pass,
+                              layer_idx,
+                              pt_before_stepover,
+                              Point2D(*tool_pos_arr),
+                              epsilon)
 
-    return tool_pos, segments_this_pass
+    return Point2D(*tool_pos_arr), segments_this_pass
 
 
-def _generate_entire_toolpath(params: PrintParameters, physical_print_width: float, physical_print_height: float) -> list[tuple[int, tuple[float, float], tuple[float, float]]]:
+def _generate_entire_toolpath(params: PrintParameters, physical_print_width: float, physical_print_height: float) -> list[tuple[int, Point2D, Point2D]]:
     """
     Generates the start and end points (relative to print volume 0,0) for all passes across all layers.
+    Returns:
+        A list of tuples, each containing:
+        - layer index (int)
+        - start point (Point2D)
+        - end point (Point2D)
     """
     paths_list = []
     short_step = params.line_spacing_mm
     num_layers = params.num_layers  # Total number of X or Y raster fill passes
 
-    tool_pos = np.array([0.0, 0.0])  # Tool starts at origin
+    tool_pos = Point2D(0.0, 0.0)  # Tool starts at origin
 
     # First X-pass: initial scan lines go 0 -> Width
     x_pass_overall_fwd_direction = True
     y_pass_first_overall_fwd_direction: bool | None = None
     y_pass_execution_count = 0
 
-    epsilon = 1e-9
+    epsilon = 1e-6
 
     if short_step <= epsilon:
-        print("Warning: line_spacing_mm (short_step) is critically small or zero.")
+        print(
+            f"Warning: line_spacing_mm {short_step:.2e} is critically small or zero. No toolpath will be generated.")
         return []
 
     for layer_idx in range(num_layers):
@@ -185,7 +262,7 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
             current_pass_overall_fwd_direction = x_pass_overall_fwd_direction
         else:  # Y-pass: determine its specific overall forward direction
             if y_pass_first_overall_fwd_direction is None:
-                y_coord, h_val = tool_pos[1], physical_print_height
+                y_coord, h_val = tool_pos.y, physical_print_height
                 if abs(y_coord - 0.0) < epsilon:
                     current_pass_overall_fwd_direction = True
                 elif abs(y_coord - h_val) < epsilon:
@@ -222,219 +299,176 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
     return paths_list
 
 
-_parameter_state = {'prev_v_star': None, 'prev_h_star': None}
+_parameter_state = {'prev_v_star': 0., 'prev_h_star': 0.}
 
 
 def _refine_segments_along_path(
     params: PrintParameters,
     lithophane_image: LithophaneImage,
     # Start of the entire path segment from toolpath generator
-    start_point_path_bp: np.ndarray,
-    end_point_path_bp: np.ndarray,   # End of the entire path segment
+    start_point_path_bp: Point2D,
+    end_point_path_bp: Point2D,   # End of the entire path segment
     layer_base_z: float,
     offset_x: float,
     offset_y: float,
     current_e_absolute: float,  # Current total accumulated E value
-    # Default to False to keep old behavior if not specified
+    # Currently not implemented
     adaptive_refinement: bool = False
-) -> tuple[list[GCommand], float, np.ndarray]:  # Return GCommand objects, new E, final tool pos
+) -> tuple[list[GCommand], float, Point2D]:  # Return GCommand objects, new E, final tool pos
     """
     Generates Gcode segments for a path, using adaptive segmentation if enabled.
     Returns: (list of GCommand objects, updated_current_e_absolute, end_tool_position_bp).
     """
     path_gcode_commands = []
-    current_tool_pos_bp = np.asarray(start_point_path_bp)
-    target_end_path_bp = np.asarray(end_point_path_bp)
-    offset_bp_vec = np.asarray([offset_x, offset_y])
+    limg = lithophane_image
+    current_tool_pos_bp = start_point_path_bp.copy()
+    target_end_path_bp = end_point_path_bp.copy()
+    offset_bp_vec = Point2D(offset_x, offset_y)
 
     path_vec_bp = target_end_path_bp - current_tool_pos_bp
     path_length_mm = np.linalg.norm(path_vec_bp)
     epsilon = 1e-6  # Small tolerance
 
     if path_length_mm <= epsilon:
-        return [], current_e_absolute, current_tool_pos_bp
+        print(
+            "Warning: Path length is too small or zero. No segments generated.")
+        return [], current_e_absolute, Point2D(*current_tool_pos_bp)
 
-    path_unit_vec_bp = path_vec_bp / path_length_mm
-    sampling_step_mm = max(params.sampling_resolution_mm,
-                           0.1)  # Ensure step is not zero
+    path_unit_vec = path_vec_bp / path_length_mm
+    sample_step_mm = params.sampling_resolution_mm
+    min_sampling_step_mm = limg.physical_print_width_mm / 1000.0  # 0.1% of the width
+    if sample_step_mm < min_sampling_step_mm:
+        print(
+            f"Requested sample step {sample_step_mm} mm is smaller than the minimum allowed {min_sampling_step_mm} mm. Using minimum instead.")
+        sample_step_mm = min_sampling_step_mm
 
     if adaptive_refinement:
-        # --- Adaptive Refinement Logic ---
-        # Currently not working as intended, but included for future use
-        raise NotImplementedError(
-            "Adaptive refinement is not yet implemented. Please use non-adaptive refinement.")
-        # This segment_start_bp tracks the beginning of the G-code line being built
-        current_gcode_segment_start_bp = current_tool_pos_bp.copy()
-        # Image value for the G-code segment currently being built
-        current_gcode_segment_img_val = lithophane_image.get_pixel_value(
-            *(current_gcode_segment_start_bp - offset_bp_vec), binarize=True
-        )
+        print(
+            f"Adaptive refinement is not yet implemented. Resorting to constant step refinement with step size {sample_step_mm:.3f} mm instead.")
 
-        # distance_along_path tracks total distance covered from start_point_path_bp
-        distance_along_path = 0.0
+    distance_along_path = 0.0
+    while distance_along_path < path_length_mm - epsilon:
+        actual_step_taken = np.minimum(sample_step_mm,
+                                       path_length_mm - distance_along_path)
+        segment_actual_end_bp = (current_tool_pos_bp
+                                 + path_unit_vec * actual_step_taken)
 
-        while distance_along_path < path_length_mm - epsilon:  # Loop until very near the end
-            # Determine the next point to sample along the path
-            # It's either a sampling_step_mm away, or the end of the path if closer
-            next_sampling_distance = min(
-                distance_along_path + sampling_step_mm, path_length_mm)
-            point_to_sample_bp = start_point_path_bp + \
-                path_unit_vec_bp * next_sampling_distance
+        seg_length_mm = actual_step_taken
 
-            image_val_at_sample_point = lithophane_image.get_pixel_value(
-                *(point_to_sample_bp - offset_bp_vec), binarize=True
-            )
+        if seg_length_mm > epsilon:
+            query_point = segment_actual_end_bp - offset_bp_vec
+            v_star, h_star = _calc_VH_stars(params, limg, query_point)
 
-            is_value_change = (image_val_at_sample_point !=
-                               current_gcode_segment_img_val)
-            is_end_of_overall_path = (
-                abs(next_sampling_distance - path_length_mm) < epsilon)
+            # Check if parameters changed significantly from last point
+            # If so we want to do a quick jump to the new height and speed
+            param_changed = False
+            prev_v_star = _parameter_state['prev_v_star']
+            prev_h_star = _parameter_state['prev_h_star']
+            p_change = params.param_change_threshold
+            if p_change > 0:
+                if prev_v_star > 0 and prev_h_star > 0:
+                    v_change = abs(v_star - prev_v_star)
+                    h_change = abs(h_star - prev_h_star)
+                    if v_change > p_change or h_change > p_change:
+                        param_changed = True
+                        # Insert G0 travel move with high speed
+                        Z = _calculate_ZFdE(
+                            params,
+                            layer_base_z,
+                            v_star,
+                            h_star,
+                            seg_length_mm,
+                            epsilon=epsilon)[0]
+                        travel_command = GCommand(
+                            type=GCodeType.G0,
+                            x=segment_actual_end_bp[0],
+                            y=segment_actual_end_bp[1],
+                            z=Z,
+                            f=params.f_travel,
+                            comment=f"Param jump: V* {prev_v_star:.2f}->{v_star:.2f}, H* {prev_h_star:.2f}-> {h_star:.2f}"
+                        )
+                        path_gcode_commands.append(str(travel_command))
 
-            if is_value_change or is_end_of_overall_path:
-                # Conditions met to finalize the current G-code segment:
-                # It ends at point_to_sample_bp (where value changed or path ends)
-                segment_actual_end_bp = point_to_sample_bp
+            # Update state
+            _parameter_state['prev_v_star'] = v_star
+            _parameter_state['prev_h_star'] = h_star
 
-                seg_vec = segment_actual_end_bp - current_gcode_segment_start_bp
-                seg_length_mm = np.linalg.norm(seg_vec)
+            # Only perform extrusion if not a parameter change travel move
+            if not param_changed:
+                Z, F, dE = _calculate_ZFdE(params,
+                                           layer_base_z,
+                                           v_star,
+                                           h_star,
+                                           seg_length_mm,
+                                           epsilon=epsilon)
 
-                if seg_length_mm > epsilon:
-                    # Use the image value from the START of this G-code segment for calculations
-                    t = current_gcode_segment_img_val
+                current_e_absolute += dE
 
-                    v_star = t * params.v_star_ld + (1 - t) * params.v_star_hd
-                    h_star = t * params.h_star_ld + (1 - t) * params.h_star_hd
-
-                    segment_Z = layer_base_z + params.alpha * h_star * params.D_N
-                    segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
-                                 if abs(v_star) > epsilon else params.f_travel)
-
-                    delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
-                               if abs(v_star) > epsilon else 0.0)
-
-                    current_e_absolute += delta_E
-
-                    gcommand = GCommand(
-                        type=GCodeType.G1,
-                        x=segment_actual_end_bp[0],
-                        y=segment_actual_end_bp[1],
-                        z=segment_Z,
-                        e=current_e_absolute,  # Absolute E
-                        f=segment_F,
-                    )
-                    path_gcode_commands.append(gcommand)
-                    current_tool_pos_bp = segment_actual_end_bp.copy()
-
-                # Setup for the NEXT G-code segment
-                current_gcode_segment_start_bp = segment_actual_end_bp.copy()
-                current_gcode_segment_img_val = image_val_at_sample_point  # Value at the new start
-
-            distance_along_path = next_sampling_distance
-            if is_end_of_overall_path:  # Ensure loop terminates if end is reached
-                break
-
-        # Final tool position after adaptive refinement should be the target end of the path
-        current_tool_pos_bp = target_end_path_bp.copy()
-
-    else:
-        # --- Non-Adaptive Refinement Logic ---
-        # Segments are cut at every sampling_step_mm
-        distance_along_path = 0.0
-        # current_tool_pos_bp is the start of the current small fixed-length segment
-
-        while distance_along_path < path_length_mm - epsilon:
-            # seg_start_bp_non_adaptive = current_tool_pos_bp.copy() # Not strictly needed for 't' calc anymore
-
-            actual_step_taken = np.minimum(
-                sampling_step_mm, path_length_mm - distance_along_path)
-            segment_actual_end_bp = current_tool_pos_bp + \
-                path_unit_vec_bp * actual_step_taken
-
-            seg_length_mm = actual_step_taken
-
-            if seg_length_mm > epsilon:
-                # Cap the query point to the physical bounds
-                query_point = segment_actual_end_bp - offset_bp_vec
-                query_point[0] = min(
-                    max(query_point[0], 0.),
-                    lithophane_image.physical_print_width_mm)
-                query_point[1] = min(
-                    max(query_point[1], 0.),
-                    lithophane_image.physical_print_height_mm)
-                # We use the channels of the image to scale the V* and H* independently. Red is for V*, Green is for H*. I'm holding onto Blue for something else, possibly dL later on, but I need to work out how to integrate that.
-                r, g, _ = lithophane_image.get_pixel_value(
-                    # Sample at segment's END
-                    *query_point, binarize=False
+                gcommand = GCommand(
+                    type=GCodeType.G1,
+                    x=segment_actual_end_bp[0],
+                    y=segment_actual_end_bp[1],
+                    z=Z,
+                    e=dE,
+                    f=F,
+                    comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
                 )
+                path_gcode_commands.append(str(gcommand))
 
-                v_star = r * params.v_star_ld + (1 - r) * params.v_star_hd
-                h_star = g * params.h_star_ld + (1 - g) * params.h_star_hd
+        # Move tool to end of this segment
+        current_tool_pos_bp = segment_actual_end_bp.copy()
+        distance_along_path += actual_step_taken
 
-                # Check if parameters changed significantly from last point
-                param_changed = False
-                if hasattr(params, 'param_change_threshold') and params.param_change_threshold > 0:
-                    if _parameter_state['prev_v_star'] is not None:
-                        v_change = abs(
-                            v_star - _parameter_state['prev_v_star'])
-                        h_change = abs(
-                            h_star - _parameter_state['prev_h_star'])
-                        if v_change > params.param_change_threshold or h_change > params.param_change_threshold:
-                            param_changed = True
-                            # Insert G0 travel move with high speed
-                            travel_command = GCommand(
-                                type=GCodeType.G0,
-                                x=segment_actual_end_bp[0],
-                                y=segment_actual_end_bp[1],
-                                z=layer_base_z + params.alpha * h_star * params.D_N,
-                                f=params.f_travel,
-                                comment=f"Parameter change travel move: V* {_parameter_state['prev_v_star']:.2f}->{v_star:.2f}, H* {_parameter_state['prev_h_star']:.2f}-> {h_star:.2f}"
-                            )
-                            path_gcode_commands.append(str(travel_command))
+    return path_gcode_commands, current_e_absolute, Point2D(*current_tool_pos_bp)
 
-                # Update state
-                _parameter_state['prev_v_star'] = v_star
-                _parameter_state['prev_h_star'] = h_star
 
-                # Only perform extrusion if not a parameter change travel move
-                if not param_changed:
-                    segment_Z = layer_base_z + params.alpha * h_star * params.D_N
-                    segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
-                                 if abs(v_star) > epsilon else params.f_travel)
+def _calc_VH_stars(params: PrintParameters,
+                   limg: LithophaneImage,
+                   query_point_relative: Point2D) -> tuple[float, float]:
+    """
+    Calculates the V* and H* values based on the pixel values at the query point.
+    Clips the query point to ensure it is within the image bounds.
+    Returns:
+        v_star: The V* value for the segment.
+        h_star: The H* value for the segment.
+    """
+    clipped_query_point_array = np.clip(query_point_relative, [0., 0.],
+                                        [limg.physical_print_width_mm,
+                                         limg.physical_print_height_mm
+                                         ])  # Ensure within bounds
+    clipped_query_point = Point2D(*clipped_query_point_array)
+    if not np.allclose(clipped_query_point, query_point_relative):
+        print(
+            f"Warning: Query point {query_point_relative} clipped to {clipped_query_point} to fit within image bounds.")
+    r, g, _ = limg.get_pixel_value(
+        clipped_query_point.x, clipped_query_point.y, binarize=False)
 
-                    delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
-                               if abs(v_star) > epsilon else 0.0)
+    v_star = r * params.v_star_ld + (1 - r) * params.v_star_hd
+    h_star = g * params.h_star_ld + (1 - g) * params.h_star_hd
+    return v_star, h_star
 
-                    current_e_absolute += delta_E
 
-                    gcommand = GCommand(
-                        type=GCodeType.G1,
-                        x=segment_actual_end_bp[0],
-                        y=segment_actual_end_bp[1],
-                        z=segment_Z,
-                        e=delta_E,
-                        f=segment_F,
-                        comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
-                    )
-                    path_gcode_commands.append(str(gcommand))
+def _calculate_ZFdE(params,
+                    layer_base_z,
+                    v_star,
+                    h_star,
+                    seg_length_mm,
+                    epsilon=1e-6) -> tuple[float, float, float]:
+    """
+    Calculates the Z position, F speed, and delta E for a segment based on v_star and h_star.
+    Returns:
+        segment_Z: The Z position for the segment.
+        segment_F: The feed rate for the segment.
+        delta_E: The change in extrusion length for the segment.
+    """
+    segment_Z = layer_base_z + params.alpha * h_star * params.D_N
+    segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
+                 if abs(v_star) > epsilon else params.f_travel)
 
-            # Move tool to end of this segment
-            current_tool_pos_bp = segment_actual_end_bp.copy()
-            distance_along_path += actual_step_taken
+    delta_E = ((seg_length_mm / v_star) * (params.A_T / params.A_F)
+               if abs(v_star) > epsilon else 0.0)
 
-        # Ensure tool ends exactly at target_end_path_bp if minor float issues occurred
-        if np.linalg.norm(current_tool_pos_bp - target_end_path_bp) > epsilon:
-            # This case should ideally not be hit often if logic is correct
-            # but as a safeguard, if not at the end, make a final small move.
-            # This move would typically be non-extruding or use params of last point.
-            # For simplicity here, we assume the loop got us close enough or to the end.
-            # A more robust final step might be needed if precise endpoint is critical
-            # and the loop undershoots.
-            # However, the `min` in `actual_step_taken` should prevent overshooting
-            # and `while distance_along_path < path_length_mm - epsilon` should make it stop right.
-            # The main thing is that current_tool_pos_bp *is* the final position.
-            pass  # current_tool_pos_bp reflects the true end.
-
-    return path_gcode_commands, current_e_absolute, current_tool_pos_bp
+    return float(segment_Z), float(segment_F), float(delta_E)
 
 
 def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -> list[str]:
@@ -450,6 +484,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     """
     print("Generating GCode")
     gcode_lines = []
+    print_start_pt_bp = Point2D(0.0, 0.0)  # Start point on the build plate
 
     # 1. Include Start Gcode
     try:
@@ -468,64 +503,47 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     # Calculate offset to center the print volume on the build plate
     physical_print_width = lithophane_image.physical_print_width_mm
     physical_print_height = lithophane_image.physical_print_height_mm
-    offset_x, offset_y = _calculate_build_plate_offset(
+    offset = _calculate_build_plate_offset(
         params, physical_print_width, physical_print_height)
     gcode_lines.append(
-        f"; Centering print volume ({physical_print_width:.2f}x{physical_print_height:.2f} mm) on build plate ({params.printer_bed_size_mm[0]:.2f}x{params.printer_bed_size_mm[1]:.2f} mm) with offset ({offset_x:.2f}, {offset_y:.2f}) mm")
-
-    # Initial position is assumed to be (0,0) after homing and initial Z lift from start gcode
-    # The very first move will be to the start of the first pass at the calculated Z.
-    # This will be updated after the first move
-    current_pos_bp = np.array([0.0, 0.0])
+        f"; Centering print volume ({physical_print_width:.2f}x{physical_print_height:.2f} mm) on build plate ({params.printer_bed_size_mm[0]:.2f}x{params.printer_bed_size_mm[1]:.2f} mm) with offset ({offset.x:.2f}, {offset.y:.2f}) mm")
 
     # --- Generate all passes first, then iterate to generate Gcode ---
     all_passes_relative = _generate_entire_toolpath(
         params, physical_print_width, physical_print_height)
 
+    # Start with the intro line to the first pass
+    current_pos_bp = print_start_pt_bp.copy()  # The staring point of the intro line
+    # The ending point of the intro line
+    end_pt_bp = all_passes_relative[0][1] + offset
+
+    v_star, h_star = _calc_VH_stars(
+        params, lithophane_image, all_passes_relative[0][1])
+    # Calculate Z, F, and dE for the first move
+    length = np.linalg.norm(end_pt_bp - current_pos_bp)
+    Z, F, dE = _calculate_ZFdE(params, 0., v_star, h_star, length)
+    gc = GCommand(
+        type=GCodeType.G1,
+        x=end_pt_bp.x,
+        y=end_pt_bp.y,
+        z=Z,
+        e=dE,
+        f=F,
+        comment=f"Intro line: V* {v_star:.2f}, H* {h_star:.2f}")
+    gcode_lines.append(str(gc))
+
     print("Refining segments...")
     for pass_idx_global, (layer, start_pt_rel, end_pt_rel) in enumerate(all_passes_relative):
-        layer_base_z = layer * params.dz_mm
 
-        # Apply offset to pass start and end points (build plate coordinates)
-        start_pt_bp = np.array([
-            start_pt_rel[0] + offset_x,
-            start_pt_rel[1] + offset_y])
-        end_pt_bp = np.array([
-            end_pt_rel[0] + offset_x,
-            end_pt_rel[1] + offset_y])
+        # Convert relative coordinates to absolute build plate coordinates
+        current_pos_bp = start_pt_rel + offset
+        end_pt_bp = end_pt_rel + offset
+        # layer number is zero indexed
+        layer_z = layer * params.dz_mm
 
-        # --- Handle transition to the start of the current pass (G1) ---
-        # If it's the very first pass of the entire print (global index 0),
-        # the start gcode should position the nozzle. The first G1 will move to the start point at calculated Z.
-        # For all subsequent passes (global index > 0),
-        # the nozzle is already at the end of the last segment of the previous pass.
-        # The move to the start of the current pass is a G1 command that transitions XY and Z.
-
-        # The start point of the current move is current_pos_bp (end of previous segment)
-        # The end point of the current move is start_point_bp (start of current pass)
-
-        # Generate segments for the move to the start of the current pass
-        # This is only needed for passes after the very first one
-        ENABLE_ADAPTIVE_REFINEMENT = False
-        if pass_idx_global > 0:
-            connecting_lines, current_e, current_pos_bp = _refine_segments_along_path(
-                params, lithophane_image, current_pos_bp, start_pt_bp, layer_base_z, offset_x, offset_y, current_e, adaptive_refinement=ENABLE_ADAPTIVE_REFINEMENT
-            )
-            gcode_lines.extend(connecting_lines)
-            # current_pos_bp is updated by _generate_segments_along_path to be the end of the connecting move (which is start_point_bp)
-        else:
-            # For the very first pass, the start gcode positions the nozzle.
-            # The first generated G1 command will be for the first segment of the first pass.
-            # current_pos_bp needs to be set to the start of the first pass for _generate_segments_along_path to work correctly.
-            current_pos_bp = start_pt_bp
-
-        # --- Generate segments along the pass ---
-        # Break the long pass into segments of refinement_length_mm
-        # current_pos_bp is already at the start of the pass from the previous move
+        # Generate segments along the pass
         segment_lines, current_e, current_pos_bp = _refine_segments_along_path(
-            params, lithophane_image, current_pos_bp, end_pt_bp, layer_base_z, offset_x, offset_y, current_e,
-            adaptive_refinement=ENABLE_ADAPTIVE_REFINEMENT,
-        )
+            params, lithophane_image, current_pos_bp, end_pt_bp, layer_z, offset.x, offset.y, current_e)
         gcode_lines.extend(segment_lines)
 
     # --- End of Main Lithophane Generation Loop ---
