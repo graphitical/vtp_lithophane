@@ -1,5 +1,4 @@
-# vtp_lithophane/gcode_generator.py
-import math
+# vtp_lithophane/gcode/gcode_generator.py
 import os
 from enum import Enum
 
@@ -16,7 +15,7 @@ class GCodeType(Enum):
 
 
 class GCommand:
-    def __init__(self, type=GCodeType.G1, x=None, y=None, z=None, e=None, f=None, comment=''):
+    def __init__(self, type: GCodeType = GCodeType.G1, x: float | None = None, y: float | None = None, z: float | None = None, e: float | None = None, f: float | None = None, comment: str = ''):
         self.type = type
         self.values = dict(
             X=x,
@@ -53,7 +52,9 @@ class GCommand:
         return ' '.join(command_parts)
 
 
-def _calculate_build_plate_offset(params: PrintParameters, physical_print_width: float, physical_print_height: float) -> tuple[float, float]:
+def _calculate_build_plate_offset(params: PrintParameters,
+                                  physical_print_width: float,
+                                  physical_print_height: float) -> tuple[float, float]:
     """Calculates the X and Y offset to center the print volume on the build plate."""
     print("Determining build plate dimensions")
     build_plate_width, build_plate_height = params.printer_bed_size_mm
@@ -64,10 +65,16 @@ def _calculate_build_plate_offset(params: PrintParameters, physical_print_width:
 
 
 def _add_segment_if_moved(
-    segments_list: list, layer_idx: int, pt_start_tuple: tuple[float, float],
-    pt_end_tuple: tuple[float, float], epsilon: float
+    segments_list: list,
+    layer_idx: int,
+    pt_start_tuple: tuple[float, float],
+    pt_end_tuple: tuple[float, float],
+    epsilon: float
 ):
-    """Helper to add a segment only if it represents actual movement."""
+    """
+    Helper to add a segment only if it represents actual movement.
+    Modifies segments_list in place.
+    """
     if np.linalg.norm(np.array(pt_end_tuple) - np.array(pt_start_tuple)) > epsilon:
         segments_list.append((layer_idx, pt_start_tuple, pt_end_tuple))
 
@@ -93,6 +100,15 @@ def _execute_single_raster_pass(
     else:  # Y-primary pass
         primary_max, secondary_max = physical_print_height, physical_print_width
         primary_axis_idx, secondary_axis_idx = 1, 0
+
+    # Adjust primary and secondary max values to be multiples of short_step
+    # We do this so that the toolpath aligns with the step size in both directions.
+    # This implicitly happens for the secondary axis already because of the stepover logic when next_scan_coord_on_secondary is calculated and the next step is out of bounds, but we do it for the primary axis too to ensure consistency.
+    primary_max = np.floor(primary_max / short_step) * short_step
+    secondary_max = np.floor(secondary_max / short_step) * short_step
+    if primary_max <= epsilon or secondary_max <= epsilon:
+        print("Warning: Primary or secondary dimension is too small or zero.")
+        return tool_pos, segments_this_pass
 
     scan_coord_on_secondary = tool_pos[secondary_axis_idx]
 
