@@ -168,6 +168,21 @@ class ProcessSettingsDialog(QDialog):
         self.bed_temp.setSuffix(" °C")
         printer_layout.addRow("Bed Temp:", self.bed_temp)
 
+        # Retraction settings
+        self.retract_length = QDoubleSpinBox()
+        self.retract_length.setRange(0, 10)
+        self.retract_length.setValue(5.0)
+        self.retract_length.setSingleStep(0.5)
+        self.retract_length.setSuffix(" mm")
+        printer_layout.addRow("Retraction Length:", self.retract_length)
+
+        self.retract_speed = QDoubleSpinBox()
+        self.retract_speed.setRange(100, 5000)
+        self.retract_speed.setValue(2000.0)
+        self.retract_speed.setSingleStep(100)
+        self.retract_speed.setSuffix(" mm/min")
+        printer_layout.addRow("Retraction Speed:", self.retract_speed)
+
         self.extrusion_multiplier = QDoubleSpinBox()
         self.extrusion_multiplier.setRange(0.01, 1.0)
         self.extrusion_multiplier.setValue(1.2)
@@ -195,23 +210,45 @@ class ProcessSettingsDialog(QDialog):
         gcode_layout = QFormLayout(gcode_tab)
         tab_widget.addTab(gcode_tab, "G-code Files")
 
+        # Start G-code section
         self.start_gcode = QLineEdit()
         browse_start_btn = QPushButton("Browse...")
         browse_start_btn.clicked.connect(lambda: self.browse_file(
             self.start_gcode, "Select Start G-code"))
+
+        # Add a "View Variables" button for start G-code
+        view_start_vars_btn = QPushButton("View Variables")
+        view_start_vars_btn.clicked.connect(
+            lambda: self.show_template_variables("start"))
+
         start_layout = QHBoxLayout()
         start_layout.addWidget(self.start_gcode)
         start_layout.addWidget(browse_start_btn)
+        start_layout.addWidget(view_start_vars_btn)
         gcode_layout.addRow("Start G-code File:", start_layout)
 
+        # End G-code section
         self.end_gcode = QLineEdit()
         browse_end_btn = QPushButton("Browse...")
         browse_end_btn.clicked.connect(
             lambda: self.browse_file(self.end_gcode, "Select End G-code"))
+
+        # Add a "View Variables" button for end G-code
+        view_end_vars_btn = QPushButton("View Variables")
+        view_end_vars_btn.clicked.connect(
+            lambda: self.show_template_variables("end"))
+
         end_layout = QHBoxLayout()
         end_layout.addWidget(self.end_gcode)
         end_layout.addWidget(browse_end_btn)
+        end_layout.addWidget(view_end_vars_btn)
         gcode_layout.addRow("End G-code File:", end_layout)
+
+        # Information label about templates
+        template_info = QLabel(
+            "Note: G-code templates can contain variables like {bed_temp} that will be replaced with actual values.")
+        template_info.setWordWrap(True)
+        gcode_layout.addRow(template_info)
 
         # Button Box
         self.button_box = QDialogButtonBox(
@@ -253,6 +290,43 @@ class ProcessSettingsDialog(QDialog):
                 "last_generic_file_directory", os.path.dirname(file_path))
             line_edit.setText(file_path)
 
+    def show_template_variables(self, template_type):
+        """Show a dialog with the variables available in the template."""
+        from src.gcode.template_handler import GcodeTemplateHandler
+
+        try:
+            handler = GcodeTemplateHandler()
+
+            # Get the template path based on type
+            if template_type.lower() == "start":
+                template_path = self.start_gcode.text()
+            else:
+                template_path = self.end_gcode.text()
+
+            # If the path is empty, use default template
+            if not template_path:
+                template_path = handler.get_default_template_path(
+                    template_type)
+
+            # Get variables from the template
+            variables = handler.get_template_variables(template_path)
+
+            if variables:
+                # Create message with variables
+                var_list = "\n".join([f"  - {{{var}}}" for var in variables])
+                message = f"The following variables can be used in the {template_type} G-code template:\n\n{var_list}"
+            else:
+                message = f"No variables found in the {template_type} G-code template."
+
+            # Show in a message box
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Template Variables", message)
+
+        except Exception as e:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, "Error", f"Could not read template variables: {str(e)}")
+
     def save_settings(self):
         """Save settings to QSettings."""
         self.settings.setValue("image_path", self.image_path.text())
@@ -274,6 +348,8 @@ class ProcessSettingsDialog(QDialog):
                                self.filament_diameter.value())
         self.settings.setValue("nozzle_temp", self.nozzle_temp.value())
         self.settings.setValue("bed_temp", self.bed_temp.value())
+        self.settings.setValue("retract_length", self.retract_length.value())
+        self.settings.setValue("retract_speed", self.retract_speed.value())
         self.settings.setValue("extrusion_multiplier",
                                self.extrusion_multiplier.value())
         self.settings.setValue("bed_width", self.bed_width.value())
@@ -325,6 +401,12 @@ class ProcessSettingsDialog(QDialog):
                 float(self.settings.value("nozzle_temp")))
         if self.settings.contains("bed_temp"):
             self.bed_temp.setValue(float(self.settings.value("bed_temp")))
+        if self.settings.contains("retract_length"):
+            self.retract_length.setValue(
+                float(self.settings.value("retract_length")))
+        if self.settings.contains("retract_speed"):
+            self.retract_speed.setValue(
+                float(self.settings.value("retract_speed")))
         if self.settings.contains("extrusion_multiplier"):
             self.extrusion_multiplier.setValue(
                 float(self.settings.value("extrusion_multiplier")))
@@ -388,6 +470,10 @@ class ProcessSettingsDialog(QDialog):
             f_travel=self.travel_speed.value(),
             D_N=self.nozzle_diameter.value(),
             D_F=self.filament_diameter.value(),
+            bed_temp=self.bed_temp.value(),
+            nozzle_temp=self.nozzle_temp.value(),
+            retract_length=self.retract_length.value(),
+            retract_speed=self.retract_speed.value(),
             printer_bed_size_mm=(self.bed_width.value(),
                                  self.bed_height.value())
         )

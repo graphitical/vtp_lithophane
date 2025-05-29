@@ -483,17 +483,41 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     Returns:
         A list of strings, where each string is a line of Gcode.
     """
+    from .template_handler import GcodeTemplateHandler
+
     print("Generating GCode")
     gcode_lines = []
     print_start_pt_bp = Point2D(0.0, 0.0)  # Start point on the build plate
 
-    # 1. Include Start Gcode
+    # 1. Include Start Gcode with variable replacement
     try:
-        with open(params.start_gcode_filepath, 'r') as f:
-            gcode_lines.extend([line.strip() for line in f if line.strip()])
+        template_handler = GcodeTemplateHandler()
+
+        # Prepare variables for template replacement
+        template_variables = {
+            "bed_temp": params.bed_temp,
+            "nozzle_temp": params.nozzle_temp,
+            "travel_speed": params.f_travel,
+            "priming_line_length": 120,  # Default value
+            "filament_diameter": params.D_F,
+            "nozzle_diameter": params.D_N,
+            # Add any additional variables that might be needed
+        }
+
+        processed_start_gcode = template_handler.process_template(
+            params.start_gcode_filepath, template_variables)
+        gcode_lines.extend(processed_start_gcode)
         gcode_lines.append("; --- START GCODE ---")
-    except IOError as e:
-        print(f"Error reading start Gcode file: {e}")
+    except Exception as e:
+        print(f"Error processing start Gcode template: {e}")
+        # Fall back to reading the file directly if template processing fails
+        try:
+            with open(params.start_gcode_filepath, 'r') as f:
+                gcode_lines.extend([line.strip()
+                                   for line in f if line.strip()])
+            gcode_lines.append("; --- START GCODE FALLBACK ---")
+        except IOError as e:
+            print(f"Error reading start Gcode file: {e}")
 
     current_e = 0.0
     gcode_lines.append("G92 E0 ; Reset extruder position")
@@ -544,13 +568,41 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             params, lithophane_image, current_pos_bp, end_pt_bp, layer_z, offset.x, offset.y, current_e)
         gcode_lines.extend(segment_lines)
 
-    # 2. Include End Gcode
+    # 2. Include End Gcode with variable replacement
     gcode_lines.append("; --- END GCODE ---")
     try:
-        with open(params.end_gcode_filepath, 'r') as f:
-            gcode_lines.extend([line.strip() for line in f if line.strip()])
-    except IOError as e:
-        print(f"Error reading end Gcode file: {e}")
+        # Calculate estimated values for template variables
+        filament_used = current_e  # Total extruded filament in mm
+        # Rough estimate: 30 seconds per pass
+        print_time_seconds = len(all_passes_relative) * 30
+        print_time_hours = print_time_seconds // 3600
+        print_time_minutes = (print_time_seconds % 3600) // 60
+        print_time_str = f"{print_time_hours}h {print_time_minutes}m"
+
+        # Prepare end gcode template variables
+        template_variables = {
+            "retract_length": params.retract_length,
+            "retract_speed": params.retract_speed,
+            "z_lift": 100,  # Default z lift height
+            "travel_speed": params.f_travel,
+            "print_time": print_time_str,
+            "filament_used": f"{filament_used:.2f}"
+        }
+
+        # Process end gcode template
+        template_handler = GcodeTemplateHandler()
+        processed_end_gcode = template_handler.process_template(
+            params.end_gcode_filepath, template_variables)
+        gcode_lines.extend(processed_end_gcode)
+    except Exception as e:
+        print(f"Error processing end Gcode template: {e}")
+        # Fall back to reading the file directly if template processing fails
+        try:
+            with open(params.end_gcode_filepath, 'r') as f:
+                gcode_lines.extend([line.strip()
+                                   for line in f if line.strip()])
+        except IOError as e:
+            print(f"Error reading end Gcode file: {e}")
 
     return gcode_lines
 
