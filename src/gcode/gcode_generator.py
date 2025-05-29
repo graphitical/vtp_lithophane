@@ -313,7 +313,7 @@ def _refine_segments_along_path(
     offset_x: float,
     offset_y: float,
     current_e_absolute: float,  # Current total accumulated E value
-    # Default to False to keep old behavior if not specified
+    # Currently not implemented
     adaptive_refinement: bool = False
 ) -> tuple[list[GCommand], float, Point2D]:  # Return GCommand objects, new E, final tool pos
     """
@@ -324,7 +324,7 @@ def _refine_segments_along_path(
     limg = lithophane_image
     current_tool_pos_bp = start_point_path_bp.copy()
     target_end_path_bp = end_point_path_bp.copy()
-    offset_bp_vec = np.asarray([offset_x, offset_y])
+    offset_bp_vec = Point2D(offset_x, offset_y)
 
     path_vec_bp = target_end_path_bp - current_tool_pos_bp
     path_length_mm = np.linalg.norm(path_vec_bp)
@@ -337,87 +337,95 @@ def _refine_segments_along_path(
 
     path_unit_vec = path_vec_bp / path_length_mm
     sample_step_mm = params.sampling_resolution_mm
-    min_sampling_step_mm = limg.physical_print_width_mm / 100.0  # 1% of the width
+    min_sampling_step_mm = limg.physical_print_width_mm / 1000.0  # 0.1% of the width
     if sample_step_mm < min_sampling_step_mm:
         print(
             f"Requested sample step {sample_step_mm} mm is smaller than the minimum allowed {min_sampling_step_mm} mm. Using minimum instead.")
         sample_step_mm = min_sampling_step_mm
 
     if adaptive_refinement:
-        print("Adaptive refinement is not yet implemented. Please use non-adaptive refinement.")
-    else:
-        distance_along_path = 0.0
-        while distance_along_path < path_length_mm - epsilon:
-            actual_step_taken = np.minimum(sample_step_mm,
-                                           path_length_mm - distance_along_path)
-            segment_actual_end_bp = (current_tool_pos_bp
-                                     + path_unit_vec * actual_step_taken)
+        print(
+            f"Adaptive refinement is not yet implemented. Resorting to constant step refinement with step size {sample_step_mm:.3f} mm instead.")
 
-            seg_length_mm = actual_step_taken
+    distance_along_path = 0.0
+    while distance_along_path < path_length_mm - epsilon:
+        actual_step_taken = np.minimum(sample_step_mm,
+                                       path_length_mm - distance_along_path)
+        segment_actual_end_bp = (current_tool_pos_bp
+                                 + path_unit_vec * actual_step_taken)
 
-            if seg_length_mm > epsilon:
-                query_point = segment_actual_end_bp - offset_bp_vec
-                v_star, h_star = _calc_VH_stars(
-                    params, limg, Point2D(*query_point))
+        seg_length_mm = actual_step_taken
 
-                # Check if parameters changed significantly from last point
-                param_changed = False
-                if hasattr(params, 'param_change_threshold') and \
-                        params.param_change_threshold > 0:
-                    if _parameter_state['prev_v_star']:
-                        v_change = abs(
-                            v_star - _parameter_state['prev_v_star'])
-                        h_change = abs(
-                            h_star - _parameter_state['prev_h_star'])
-                        if v_change > params.param_change_threshold or h_change > params.param_change_threshold:
-                            param_changed = True
-                            # Insert G0 travel move with high speed
-                            travel_command = GCommand(
-                                type=GCodeType.G0,
-                                x=segment_actual_end_bp[0],
-                                y=segment_actual_end_bp[1],
-                                z=layer_base_z + params.alpha * h_star * params.D_N,
-                                f=params.f_travel,
-                                comment=f"Param jump: V* {_parameter_state['prev_v_star']:.2f}->{v_star:.2f}, H* {_parameter_state['prev_h_star']:.2f}-> {h_star:.2f}"
-                            )
-                            path_gcode_commands.append(str(travel_command))
+        if seg_length_mm > epsilon:
+            query_point = segment_actual_end_bp - offset_bp_vec
+            v_star, h_star = _calc_VH_stars(params, limg, query_point)
 
-                # Update state
-                _parameter_state['prev_v_star'] = v_star
-                _parameter_state['prev_h_star'] = h_star
+            # Check if parameters changed significantly from last point
+            # If so we want to do a quick jump to the new height and speed
+            param_changed = False
+            prev_v_star = _parameter_state['prev_v_star']
+            prev_h_star = _parameter_state['prev_h_star']
+            p_change = params.param_change_threshold
+            if p_change > 0:
+                if prev_v_star > 0 and prev_h_star > 0:
+                    v_change = abs(v_star - prev_v_star)
+                    h_change = abs(h_star - prev_h_star)
+                    if v_change > p_change or h_change > p_change:
+                        param_changed = True
+                        # Insert G0 travel move with high speed
+                        Z = _calculate_ZFdE(
+                            params,
+                            layer_base_z,
+                            v_star,
+                            h_star,
+                            seg_length_mm,
+                            epsilon=epsilon)[0]
+                        travel_command = GCommand(
+                            type=GCodeType.G0,
+                            x=segment_actual_end_bp[0],
+                            y=segment_actual_end_bp[1],
+                            z=Z,
+                            f=params.f_travel,
+                            comment=f"Param jump: V* {prev_v_star:.2f}->{v_star:.2f}, H* {prev_h_star:.2f}-> {h_star:.2f}"
+                        )
+                        path_gcode_commands.append(str(travel_command))
 
-                # Only perform extrusion if not a parameter change travel move
-                if not param_changed:
-                    Z, F, dE = _calculate_ZFdE(params,
-                                               layer_base_z,
-                                               v_star,
-                                               h_star,
-                                               seg_length_mm,
-                                               epsilon=epsilon)
+            # Update state
+            _parameter_state['prev_v_star'] = v_star
+            _parameter_state['prev_h_star'] = h_star
 
-                    current_e_absolute += dE
+            # Only perform extrusion if not a parameter change travel move
+            if not param_changed:
+                Z, F, dE = _calculate_ZFdE(params,
+                                           layer_base_z,
+                                           v_star,
+                                           h_star,
+                                           seg_length_mm,
+                                           epsilon=epsilon)
 
-                    gcommand = GCommand(
-                        type=GCodeType.G1,
-                        x=segment_actual_end_bp[0],
-                        y=segment_actual_end_bp[1],
-                        z=Z,
-                        e=dE,
-                        f=F,
-                        comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
-                    )
-                    path_gcode_commands.append(str(gcommand))
+                current_e_absolute += dE
 
-            # Move tool to end of this segment
-            current_tool_pos_bp = segment_actual_end_bp.copy()
-            distance_along_path += actual_step_taken
+                gcommand = GCommand(
+                    type=GCodeType.G1,
+                    x=segment_actual_end_bp[0],
+                    y=segment_actual_end_bp[1],
+                    z=Z,
+                    e=dE,
+                    f=F,
+                    comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
+                )
+                path_gcode_commands.append(str(gcommand))
+
+        # Move tool to end of this segment
+        current_tool_pos_bp = segment_actual_end_bp.copy()
+        distance_along_path += actual_step_taken
 
     return path_gcode_commands, current_e_absolute, Point2D(*current_tool_pos_bp)
 
 
 def _calc_VH_stars(params: PrintParameters,
                    limg: LithophaneImage,
-                   query_point: Point2D) -> tuple[float, float]:
+                   query_point_relative: Point2D) -> tuple[float, float]:
     """
     Calculates the V* and H* values based on the pixel values at the query point.
     Clips the query point to ensure it is within the image bounds.
@@ -425,14 +433,14 @@ def _calc_VH_stars(params: PrintParameters,
         v_star: The V* value for the segment.
         h_star: The H* value for the segment.
     """
-    clipped_query_point_array = np.clip(query_point, [0., 0.],
+    clipped_query_point_array = np.clip(query_point_relative, [0., 0.],
                                         [limg.physical_print_width_mm,
                                          limg.physical_print_height_mm
                                          ])  # Ensure within bounds
     clipped_query_point = Point2D(*clipped_query_point_array)
-    if not np.allclose(clipped_query_point, query_point):
+    if not np.allclose(clipped_query_point, query_point_relative):
         print(
-            f"Warning: Query point {query_point} clipped to {clipped_query_point} to fit within image bounds.")
+            f"Warning: Query point {query_point_relative} clipped to {clipped_query_point} to fit within image bounds.")
     r, g, _ = limg.get_pixel_value(
         clipped_query_point.x, clipped_query_point.y, binarize=False)
 
@@ -508,7 +516,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     end_pt_bp = all_passes_relative[0][1] + offset
 
     v_star, h_star = _calc_VH_stars(
-        params, lithophane_image, end_pt_bp)
+        params, lithophane_image, all_passes_relative[0][1])
     # Calculate Z, F, and dE for the first move
     length = np.linalg.norm(end_pt_bp - current_pos_bp)
     Z, F, dE = _calculate_ZFdE(params, 0., v_star, h_star, length)
