@@ -28,7 +28,7 @@ class GCommand:
         self.comment = comment
 
     def __str__(self):
-        command_parts = [f"G{self.type}"]
+        command_parts = [f"{self.type.name}"]
 
         # Add parameters if they are not None
         # Use appropriate formatting for float values
@@ -351,14 +351,22 @@ def _refine_segments_along_path(
             seg_length_mm = actual_step_taken
 
             if seg_length_mm > epsilon:
-                # Determine 't' based on the image value AT THE END of this small segment
-                t = lithophane_image.get_pixel_value(
+                # Cap the query point to the physical bounds
+                query_point = segment_actual_end_bp - offset_bp_vec
+                query_point[0] = min(
+                    max(query_point[0], 0.),
+                    lithophane_image.physical_print_width_mm)
+                query_point[1] = min(
+                    max(query_point[1], 0.),
+                    lithophane_image.physical_print_height_mm)
+                # We use the channels of the image to scale the V* and H* independently. Red is for V*, Green is for H*. I'm holding onto Blue for something else, possibly dL later on, but I need to work out how to integrate that.
+                r, g, _ = lithophane_image.get_pixel_value(
                     # Sample at segment's END
-                    *(segment_actual_end_bp - offset_bp_vec), binarize=True
+                    *query_point, binarize=False
                 )
 
-                v_star = t * params.v_star_ld + (1 - t) * params.v_star_hd
-                h_star = t * params.h_star_ld + (1 - t) * params.h_star_hd
+                v_star = r * params.v_star_ld + (1 - r) * params.v_star_hd
+                h_star = g * params.h_star_ld + (1 - g) * params.h_star_hd
 
                 segment_Z = layer_base_z + params.alpha * h_star * params.D_N
                 segment_F = (v_star * params.e_dot * (params.A_F / params.A_T)
@@ -591,7 +599,7 @@ if __name__ == '__main__':
         generated_gcode = generate_gcode(test_params, test_lithophane_image)
 
         # Save generated Gcode to a file
-        output_gcode_filename = "dummy_lithophane_output.gcode"
+        output_gcode_filename = "gcode/outputs/dummy_lithophane_output.gcode"
         with open(output_gcode_filename, "w") as f:
             for gcommand in generated_gcode:
                 f.write(str(gcommand) + "\n")
@@ -611,5 +619,5 @@ if __name__ == '__main__':
             os.remove(dummy_start_gcode_path)
         if os.path.exists(dummy_end_gcode_path):
             os.remove(dummy_end_gcode_path)
-        if output_gcode_filename and os.path.exists(output_gcode_filename):
-            os.remove(output_gcode_filename)
+        # if output_gcode_filename and os.path.exists(output_gcode_filename):
+            # os.remove(output_gcode_filename)
