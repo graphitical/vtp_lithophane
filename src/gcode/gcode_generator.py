@@ -491,7 +491,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     try:
         with open(params.start_gcode_filepath, 'r') as f:
             gcode_lines.extend([line.strip() for line in f if line.strip()])
-        gcode_lines.append("; --- Start Gcode Ends ---")
+        gcode_lines.append("; --- START GCODE ---")
     except IOError as e:
         print(f"Error reading start Gcode file: {e}")
 
@@ -545,7 +545,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         gcode_lines.extend(segment_lines)
 
     # 2. Include End Gcode
-    gcode_lines.append("; --- End Gcode Starts ---")
+    gcode_lines.append("; --- END GCODE ---")
     try:
         with open(params.end_gcode_filepath, 'r') as f:
             gcode_lines.extend([line.strip() for line in f if line.strip()])

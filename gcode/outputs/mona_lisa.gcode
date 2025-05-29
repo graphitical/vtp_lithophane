@@ -6,7 +6,7 @@ G28 ; Auto home
 G1 Z5.0 F300 ; Lift nozzle after homing
 G1 X0.0 Y0.0 F2000 ; Move to origin
 G92 E0 ; Reset extruder position
-; --- Start Gcode Ends ---
+; --- START GCODE ---
 G92 E0 ; Reset extruder position
 ; Centering print volume (100.00x108.87 mm) on build plate (250.00x210.00 mm) with offset (75.00, 50.57) mm
 G1 X75.000 Y50.567 Z5.924 E11.81450 F382.8 ; Intro line: V* 0.40, H* 14.81
@@ -18480,7 +18480,7 @@ G1 X173.500 Y158.567 Z5.924 E0.06531 F382.8 ; V* 0.40, H* 14.81
 G1 X174.000 Y158.567 Z5.924 E0.06531 F382.8 ; V* 0.40, H* 14.81
 G1 X174.500 Y158.567 Z5.924 E0.06531 F382.8 ; V* 0.40, H* 14.81
 G1 X174.600 Y158.567 Z5.924 E0.01306 F382.8 ; V* 0.40, H* 14.81
-; --- End Gcode Starts ---
+; --- END GCODE ---
 ; Dummy End Gcode
 M104 S0 ; Turn off nozzle temp
 M140 S0 ; Turn off bed temp
