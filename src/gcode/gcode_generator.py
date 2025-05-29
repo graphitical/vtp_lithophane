@@ -462,6 +462,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         else:
             print("No Start Gcode")
 
+    gcode_lines.append("; ###SIMULATION START###")
     current_e = 0.0
 
     # Calculate offset to center the print volume on the build plate
@@ -528,6 +529,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         gcode_lines.extend(segment_lines)
 
     # --- End of Main Lithophane Generation Loop ---
+    gcode_lines.append("; ###SIMULATION END###")
 
     print("Adding final Z hop")
     # Add a final Z hop after the last layer

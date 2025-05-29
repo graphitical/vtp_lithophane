@@ -1,5 +1,3 @@
-; ###SIMULATION END###
-
 ; Dummy End Gcode
 M104 S0 ; Turn off nozzle temp
 M140 S0 ; Turn off bed temp
