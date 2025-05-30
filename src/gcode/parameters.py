@@ -67,7 +67,7 @@ class PrintParameters:
 
         # Filament cross-sectional area
         self.A_F = math.pi * (self.D_F / 2) ** 2
-        self.A_T = math.pi * (self.D_N / 2) ** 2 * self.alpha
+        self.A_T = math.pi * (self.alpha * self.D_N / 2) ** 2
 
         # Add more validation for numerical parameters (e.g., must be positive)
         if self.physical_print_width_mm <= 0:
