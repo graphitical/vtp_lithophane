@@ -14,3 +14,7 @@ M84 ; Disable motors
 ; Print completed
 ; Estimated Duration: {print_time}
 ; Material used: {filament_used}mm
+; Edot = {e_dot} mm/min
+; alpha = {alpha}
+; Nozzle diameter = {nozzle_diameter} mm
+; Filament diameter = {filament_diameter} mm

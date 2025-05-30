@@ -386,7 +386,7 @@ def _refine_segments_along_path(
                             y=segment_actual_end_bp[1],
                             z=Z,
                             f=params.f_travel,
-                            comment=f"Param jump: V* {prev_v_star:.2f}->{v_star:.2f}, H* {prev_h_star:.2f}-> {h_star:.2f}"
+                            comment=f"Param jump: V* {v_star:.2f}, H* {h_star:.2f}"
                         )
                         path_gcode_commands.append(str(travel_command))
 
@@ -483,7 +483,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     Returns:
         A list of strings, where each string is a line of Gcode.
     """
-    from .template_handler import GcodeTemplateHandler
+    from gcode.template_handler import GcodeTemplateHandler
 
     print("Generating GCode")
     gcode_lines = []
@@ -586,7 +586,11 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             "z_lift": 100,  # Default z lift height
             "travel_speed": params.f_travel,
             "print_time": print_time_str,
-            "filament_used": f"{filament_used:.2f}"
+            "filament_used": f"{filament_used:.2f}",
+            "alpha": params.alpha,
+            "e_dot": params.e_dot,
+            "nozzle_diameter": params.D_N,
+            "filament_diameter": params.D_F,
         }
 
         # Process end gcode template
