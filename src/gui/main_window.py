@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QDir, Qt, Slot
+from PySide6.QtCore import QDir, QSettings, Qt, Slot
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout,
                                QMainWindow, QMessageBox, QSizePolicy, QWidget)
 
@@ -25,6 +25,9 @@ class DualViewWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("VTP Lithophane Designer")
         self.setGeometry(100, 100, 1200, 600)
+
+        # Add this line to initialize QSettings
+        self.settings = QSettings("VTP", "Lithophane")
 
         self.current_image_path = None
         self.settings_dialog = ProcessSettingsDialog(
@@ -62,20 +65,21 @@ class DualViewWindow(QMainWindow):
 
     def import_image(self):
         """Opens a dialog to import an image and tells ImageViewWidget to display it."""
-        start_dir = QDir.homePath()
-        if self.current_image_path and os.path.exists(os.path.dirname(self.current_image_path)):
-            start_dir = os.path.dirname(self.current_image_path)
+        # Get last used directory from settings
+        last_dir = str(self.settings.value(
+            "last_image_directory", QDir.homePath()))
 
-        file_name, _ = QFileDialog.getOpenFileName(
-            self,
-            "Import Image",
-            start_dir,
-            "Image Files (*.png *.jpg *.jpeg *.bmp *.gif);;All Files (*)"
+        image_path, _ = QFileDialog.getOpenFileName(
+            self, "Import Image", last_dir,
+            "Images (*.png *.jpg *.jpeg *.bmp *.tiff);;All Files (*.*)"
         )
-        if file_name:
-            self.current_image_path = file_name
-            # Delegate to ImageViewWidget
-            self.image_view.set_image_path(self.current_image_path)
+
+        if image_path:
+            # Store the directory for next time
+            self.settings.setValue(
+                "last_image_directory", os.path.dirname(image_path))
+            self.current_image_path = image_path
+            self.image_view.set_image_path(image_path)
 
             if hasattr(self, 'settings_dialog') and self.settings_dialog:
                 self.settings_dialog.image_path.setText(
@@ -105,9 +109,13 @@ class DualViewWindow(QMainWindow):
                 if not self.settings_dialog:
                     return
 
+            # Get last used directory from settings
+            last_dir = str(self.settings.value(
+                "last_gcode_directory", QDir.homePath()))
+
             # Ask for output file location
             output_path, _ = QFileDialog.getSaveFileName(
-                self, "Save G-code", QDir.homePath(),
+                self, "Save G-code", last_dir,
                 "G-code Files (*.gcode);;All Files (*.*)"
             )
 
@@ -117,6 +125,10 @@ class DualViewWindow(QMainWindow):
             output_path = Path(output_path)
             if output_path.suffix != ".gcode":
                 output_path = output_path.with_suffix(".gcode")
+
+            # Store directory for next time
+            self.settings.setValue(
+                "last_gcode_directory", os.path.dirname(str(output_path)))
 
             output_path = str(output_path)
 

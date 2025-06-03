@@ -39,6 +39,14 @@ class PrintParameters:
     D_N: float = field(default=0.4)  # Nozzle diameter (mm)
     D_F: float = field(default=1.75)  # Filament diameter (mm)
 
+    # Printer temperature settings
+    bed_temp: float = field(default=60.0)  # Bed temperature (°C)
+    nozzle_temp: float = field(default=200.0)  # Nozzle temperature (°C)
+
+    # Retraction settings
+    retract_length: float = field(default=5.0)  # Retraction length (mm)
+    retract_speed: float = field(default=2000.0)  # Retraction speed (mm/min)
+
     # Optional/Advanced Parameters
     printer_bed_size_mm: tuple[float, float] = field(
         default=(250.0, 210.0))  # Default to common bed size
@@ -59,7 +67,7 @@ class PrintParameters:
 
         # Filament cross-sectional area
         self.A_F = math.pi * (self.D_F / 2) ** 2
-        self.A_T = math.pi * (self.D_N / 2) ** 2 * self.alpha
+        self.A_T = math.pi * (self.alpha * self.D_N / 2) ** 2
 
         # Add more validation for numerical parameters (e.g., must be positive)
         if self.physical_print_width_mm <= 0:
