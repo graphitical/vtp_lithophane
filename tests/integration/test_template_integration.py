@@ -8,8 +8,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from gcode.gcode_generator import generate_gcode
-from gcode.parameters import PrintParameters
 from gcode.template_handler import GcodeTemplateHandler
 
 # Add the project root directory to the path

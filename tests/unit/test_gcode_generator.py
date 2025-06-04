@@ -88,8 +88,8 @@ class TestGcodeGenerator(unittest.TestCase):
         mock_refine.return_value = ([gc], 0.5, MagicMock())
 
         # Run the function
-        result = generate_gcode(self.params, self.mock_image)
-        print("Actual calls:", mock_handler.process_template.call_args_list)
+        result = generate_gcode(self.params, self.mock_image)[0]
+
         # Check that the template handler was called correctly for start G-code
         mock_handler.process_template.assert_any_call(self.params.start_gcode_filepath, {
             'bed_temp': self.params.bed_temp,
@@ -136,8 +136,7 @@ class TestGcodeGenerator(unittest.TestCase):
         self.params.num_layers = 0
         self.params.start_gcode_filepath = 'i_do_not_exist.gcode'
         self.params.end_gcode_filepath = 'i_also_do_not_exist.gcode'
-        result = generate_gcode(self.params, self.mock_image)
-        print(result)
+        result = generate_gcode(self.params, self.mock_image)[0]
 
         # Check that error messages were inserted
         self.assertIn("START GCODE TEMPLATE ERROR", ''.join(result))

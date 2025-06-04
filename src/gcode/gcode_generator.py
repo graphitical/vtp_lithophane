@@ -477,7 +477,8 @@ def _calculate_ZFdE(params,
     return float(segment_Z), float(segment_F), float(delta_E)
 
 
-def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -> list[str]:
+def generate_gcode(params: PrintParameters,
+                   lithophane_image: LithophaneImage) -> tuple[list[str], list[GCommand]]:
     """
     Generates Gcode for a lithophane based on the provided parameters and image.
 
@@ -492,6 +493,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
 
     print("Generating GCode")
     gcode_lines = []
+    gcommands = []
     print_start_pt_bp = Point2D(0.0, 0.0)  # Start point on the build plate
 
     # 1. Include Start Gcode with variable replacement
@@ -577,7 +579,6 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             gcode_lines.extend(segment_lines)
         gcode_lines.append("; ###SIMULATION END###")
 
-    # 2. Include End Gcode with variable replacement
     gcode_lines.append("; --- END GCODE ---")
     try:
         # Calculate estimated values for template variables
@@ -618,7 +619,7 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
             "; WARNING: End G-code not included - manual cleanup required")
         gcode_lines.append("; --- END END GCODE ERROR ---")
 
-    return gcode_lines
+    return gcode_lines, gcommands
 
 
 # Example Usage (for testing the generator function - requires dummy files and LithophaneImage)
@@ -699,7 +700,7 @@ if __name__ == '__main__':
             test_params.image_filepath, test_params.physical_print_width_mm)
 
         # Generate Gcode
-        generated_gcode = generate_gcode(test_params, test_lithophane_image)
+        generated_gcode = generate_gcode(test_params, test_lithophane_image)[0]
 
         # Save generated Gcode to a file
         output_gcode_filename = "gcode/outputs/dummy_lithophane_output.gcode"
