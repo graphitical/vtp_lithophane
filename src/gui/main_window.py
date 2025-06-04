@@ -11,11 +11,10 @@ from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout,
 from gcode.gcode_generator import generate_gcode
 from gcode.image_utils import LithophaneImage
 from gcode.parameters import PrintParameters
-
-from .image_view_widget import ImageViewWidget
-from .menu_bar import create_main_menu
-from .pyvista_widget import PyVistaWidget
-from .settings_dialog import ProcessSettingsDialog
+from gui.gcode_view_widget import GCodeViewWidget
+from gui.image_view_widget import ImageViewWidget
+from gui.menu_bar import create_main_menu
+from gui.settings_dialog import ProcessSettingsDialog
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -46,7 +45,7 @@ class DualViewWindow(QMainWindow):
 
         # --- Right View: Placeholder for PyVista ---
         params = self.settings_dialog.get_print_parameters()
-        self.pyvista_view = PyVistaWidget(params.printer_bed_size_mm)
+        self.pyvista_view = GCodeViewWidget(params.printer_bed_size_mm)
         main_layout.addWidget(self.pyvista_view, 1)
 
         central_widget.setLayout(main_layout)
