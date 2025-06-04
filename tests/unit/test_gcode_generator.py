@@ -2,13 +2,15 @@
 """
 Unit tests for G-code generation with templates.
 """
-from src.gcode.parameters import PrintParameters
-from src.gcode.gcode_generator import generate_gcode
 import os
 import sys
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
+
+from gcode.gcode_generator import GCodeType, GCommand, generate_gcode
+from gcode.parameters import PrintParameters
+from gcode.template_handler import GcodeTemplateHandler
 
 # Add the project root directory to the path
 sys.path.insert(0, os.path.abspath(
@@ -43,19 +45,19 @@ class TestGcodeGenerator(unittest.TestCase):
             line_spacing_mm=1.2,
             sampling_resolution_mm=1.0,
             dz_mm=1.27,
-            start_gcode_filepath="dummy_start.gcode",
-            end_gcode_filepath="dummy_end.gcode",
+            start_gcode_filepath="gcode/templates/default_start.gcode",
+            end_gcode_filepath="gcode/templates/default_end.gcode",
             bed_temp=60.0,
             nozzle_temp=210.0,
             retract_length=5.0,
             retract_speed=2000.0
         )
 
-    @patch('src.gcode.gcode_generator._generate_entire_toolpath')
-    @patch('src.gcode.gcode_generator._calculate_ZFdE')
-    @patch('src.gcode.gcode_generator._calc_VH_stars')
-    @patch('src.gcode.gcode_generator._refine_segments_along_path')
-    @patch('src.gcode.template_handler.GcodeTemplateHandler')
+    @patch('gcode.gcode_generator._generate_entire_toolpath')
+    @patch('gcode.gcode_generator._calculate_ZFdE')
+    @patch('gcode.gcode_generator._calc_VH_stars')
+    @patch('gcode.gcode_generator._refine_segments_along_path')
+    @patch('gcode.template_handler.GcodeTemplateHandler')
     def test_gcode_generation_with_templates(self, mock_handler_class, mock_refine, mock_calc_stars, mock_calc_zfde, mock_toolpath):
         """Test that generate_gcode uses templates correctly."""
         # Configure mocks
@@ -72,12 +74,22 @@ class TestGcodeGenerator(unittest.TestCase):
         mock_toolpath.return_value = [(0, MagicMock(), MagicMock())]
         mock_calc_stars.return_value = (0.3, 10.0)  # v_star, h_star
         mock_calc_zfde.return_value = (1.0, 3000.0, 0.5)  # Z, F, dE
-        mock_refine.return_value = (
-            ["G1 X10 Y10 Z1.0 E0.5 F3000"], 0.5, MagicMock())
+        # mock_refine.return_value = (
+        # ["G1 X10 Y10 Z1.0 E0.5 F3000"], 0.5, MagicMock())
+        gc = GCommand(
+            type=GCodeType.G1,
+            x=10.0,
+            y=10.0,
+            z=1.0,
+            e=0.5,
+            f=3000.0,
+            comment="Test command"
+        )
+        mock_refine.return_value = ([gc], 0.5, MagicMock())
 
         # Run the function
         result = generate_gcode(self.params, self.mock_image)
-
+        print("Actual calls:", mock_handler.process_template.call_args_list)
         # Check that the template handler was called correctly for start G-code
         mock_handler.process_template.assert_any_call(self.params.start_gcode_filepath, {
             'bed_temp': self.params.bed_temp,
@@ -110,27 +122,26 @@ class TestGcodeGenerator(unittest.TestCase):
         self.assertIn("M140 S0", result)
 
     @patch('builtins.open', new_callable=mock_open, read_data="; Dummy G-code")
-    @patch('src.gcode.gcode_generator._generate_entire_toolpath')
-    @patch('src.gcode.gcode_generator.GcodeTemplateHandler')
+    @patch('gcode.gcode_generator._generate_entire_toolpath')
+    @patch('gcode.template_handler.GcodeTemplateHandler')
     def test_gcode_generation_with_fallback(self, mock_handler_class, mock_toolpath, mock_open_file):
-        """Test fallback mechanism when template processing fails."""
+        """Test error message insertion when template processing fails."""
         # Configure mocks
         mock_handler = MagicMock()
         mock_handler_class.return_value = mock_handler
         mock_handler.process_template.side_effect = RuntimeError(
             "Template processing failed")
-        mock_toolpath.return_value = []  # Empty toolpath
+        mock_toolpath.return_value = []
 
-        # Run the function, should not raise an exception
+        self.params.num_layers = 0
+        self.params.start_gcode_filepath = 'i_do_not_exist.gcode'
+        self.params.end_gcode_filepath = 'i_also_do_not_exist.gcode'
         result = generate_gcode(self.params, self.mock_image)
+        print(result)
 
-        # Check that fallback mechanism was used (raw file was read)
-        mock_open_file.assert_any_call(self.params.start_gcode_filepath, 'r')
-        mock_open_file.assert_any_call(self.params.end_gcode_filepath, 'r')
-
-        # Check that the fallback content was included
-        self.assertIn("; Dummy G-code", result)
-        self.assertIn("; --- START GCODE FALLBACK ---", result)
+        # Check that error messages were inserted
+        self.assertIn("START GCODE TEMPLATE ERROR", ''.join(result))
+        self.assertIn("END GCODE TEMPLATE ERROR", ''.join(result))
 
 
 if __name__ == "__main__":

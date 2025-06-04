@@ -83,18 +83,24 @@ class GCommand:
         # Use appropriate formatting for float values
         for k, v in self.values.items():
             if v is not None:
-                if k in ['X', 'Y', 'Z']:
-                    # micron level precision
-                    command_parts.append(f"{k}{v:.3f}")
-                elif k == 'E':
-                    # E typically needs higher precision
-                    command_parts.append(f"{k}{v:.5f}")
-                elif k == 'F':
-                    # F often has lower precision
-                    command_parts.append(f"{k}{v:.1f}")
-                else:
-                    # Fallback for other potential parameters
-                    command_parts.append(f"{k}{v}")
+                try:
+                    v = float(v)
+                    if k in ['X', 'Y', 'Z']:
+                        # micron level precision
+                        command_parts.append(f"{k}{v:.3f}")
+                    elif k == 'E':
+                        # E typically needs higher precision
+                        command_parts.append(f"{k}{v:.5f}")
+                    elif k == 'F':
+                        # F often has lower precision
+                        command_parts.append(f"{k}{v:.1f}")
+                    else:
+                        # Fallback for other potential parameters
+                        command_parts.append(f"{k}{v}")
+                except (TypeError, ValueError):
+                    print(
+                        f"Warning: Invalid value for {k}: {v}. Outputting as a comment.")
+                    command_parts.append(f";{k}{v}")
 
         if self.comment:
             command_parts.append(f"; {self.comment}")
@@ -509,14 +515,16 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         gcode_lines.append("; --- START GCODE ---")
     except Exception as e:
         print(f"Error processing start Gcode template: {e}")
-        # Fall back to reading the file directly if template processing fails
-        try:
-            with open(params.start_gcode_filepath, 'r') as f:
-                gcode_lines.extend([line.strip()
-                                   for line in f if line.strip()])
-            gcode_lines.append("; --- START GCODE FALLBACK ---")
-        except IOError as e:
-            print(f"Error reading start Gcode file: {e}")
+        # Insert error message instead of reading raw file
+        gcode_lines.append("; --- START GCODE TEMPLATE ERROR ---")
+        gcode_lines.append(
+            f"; Error: Could not process template {params.start_gcode_filepath}")
+        gcode_lines.append(f"; Details: {str(e)}")
+        gcode_lines.append(
+            "; WARNING: Start G-code not included - manual setup required")
+        gcode_lines.append("; --- END START GCODE ERROR ---")
+
+    print(gcode_lines)
 
     gcode_lines.append("; ###SIMULATION START###")
     current_e = 0.0
@@ -533,40 +541,41 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
     all_passes_relative = _generate_entire_toolpath(
         params, physical_print_width, physical_print_height)
 
-    # Start with the intro line to the first pass
-    current_pos_bp = print_start_pt_bp.copy()  # The staring point of the intro line
-    # The ending point of the intro line
-    end_pt_bp = all_passes_relative[0][1] + offset
+    if len(all_passes_relative) != 0:
+        # Start with the intro line to the first pass
+        current_pos_bp = print_start_pt_bp.copy()  # The staring point of the intro line
+        # The ending point of the intro line
+        end_pt_bp = all_passes_relative[0][1] + offset
 
-    v_star, h_star = _calc_VH_stars(
-        params, lithophane_image, all_passes_relative[0][1])
-    # Calculate Z, F, and dE for the first move
-    length = np.linalg.norm(end_pt_bp - current_pos_bp)
-    Z, F, dE = _calculate_ZFdE(params, 0., v_star, h_star, length)
-    gc = GCommand(
-        type=GCodeType.G1,
-        x=end_pt_bp.x,
-        y=end_pt_bp.y,
-        z=Z,
-        e=dE,
-        f=F,
-        comment=f"Intro line: V* {v_star:.2f}, H* {h_star:.2f}")
-    gcode_lines.append(str(gc))
+        v_star, h_star = _calc_VH_stars(
+            params, lithophane_image, all_passes_relative[0][1])
+        # Calculate Z, F, and dE for the first move
+        length = np.linalg.norm(end_pt_bp - current_pos_bp)
+        Z, F, dE = _calculate_ZFdE(params, 0., v_star, h_star, length)
+        gc = GCommand(
+            type=GCodeType.G1,
+            x=end_pt_bp.x,
+            y=end_pt_bp.y,
+            z=Z,
+            e=dE,
+            f=F,
+            comment=f"Intro line: V* {v_star:.2f}, H* {h_star:.2f}")
+        gcode_lines.append(str(gc))
 
-    print("Refining segments...")
-    for pass_idx_global, (layer, start_pt_rel, end_pt_rel) in enumerate(all_passes_relative):
+        print("Refining segments...")
+        for pass_idx_global, (layer, start_pt_rel, end_pt_rel) in enumerate(all_passes_relative):
 
-        # Convert relative coordinates to absolute build plate coordinates
-        current_pos_bp = start_pt_rel + offset
-        end_pt_bp = end_pt_rel + offset
-        # layer number is zero indexed
-        layer_z = layer * params.dz_mm
+            # Convert relative coordinates to absolute build plate coordinates
+            current_pos_bp = start_pt_rel + offset
+            end_pt_bp = end_pt_rel + offset
+            # layer number is zero indexed
+            layer_z = layer * params.dz_mm
 
-        # Generate segments along the pass
-        segment_lines, current_e, current_pos_bp = _refine_segments_along_path(
-            params, lithophane_image, current_pos_bp, end_pt_bp, layer_z, offset.x, offset.y, current_e)
-        gcode_lines.extend(segment_lines)
-    gcode_lines.append("; ###SIMULATION END###")
+            # Generate segments along the pass
+            segment_lines, current_e, current_pos_bp = _refine_segments_along_path(
+                params, lithophane_image, current_pos_bp, end_pt_bp, layer_z, offset.x, offset.y, current_e)
+            gcode_lines.extend(segment_lines)
+        gcode_lines.append("; ###SIMULATION END###")
 
     # 2. Include End Gcode with variable replacement
     gcode_lines.append("; --- END GCODE ---")
@@ -600,13 +609,14 @@ def generate_gcode(params: PrintParameters, lithophane_image: LithophaneImage) -
         gcode_lines.extend(processed_end_gcode)
     except Exception as e:
         print(f"Error processing end Gcode template: {e}")
-        # Fall back to reading the file directly if template processing fails
-        try:
-            with open(params.end_gcode_filepath, 'r') as f:
-                gcode_lines.extend([line.strip()
-                                   for line in f if line.strip()])
-        except IOError as e:
-            print(f"Error reading end Gcode file: {e}")
+        # Insert error message instead of reading raw file
+        gcode_lines.append("; --- END GCODE TEMPLATE ERROR ---")
+        gcode_lines.append(
+            f"; Error: Could not process template {params.end_gcode_filepath}")
+        gcode_lines.append(f"; Details: {str(e)}")
+        gcode_lines.append(
+            "; WARNING: End G-code not included - manual cleanup required")
+        gcode_lines.append("; --- END END GCODE ERROR ---")
 
     return gcode_lines
 

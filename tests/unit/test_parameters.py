@@ -2,11 +2,12 @@
 """
 Unit tests for the PrintParameters class.
 """
-from src.gcode.parameters import PrintParameters
 import os
 import sys
 import unittest
 from pathlib import Path
+
+from gcode.parameters import PrintParameters
 
 # Add the project root directory to the path
 sys.path.insert(0, os.path.abspath(

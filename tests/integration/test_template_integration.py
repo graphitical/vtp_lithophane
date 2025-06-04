@@ -2,14 +2,15 @@
 """
 Integration tests for G-code template handling.
 """
-from src.gcode.template_handler import GcodeTemplateHandler
-from src.gcode.parameters import PrintParameters
-from src.gcode.gcode_generator import generate_gcode
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from gcode.gcode_generator import generate_gcode
+from gcode.parameters import PrintParameters
+from gcode.template_handler import GcodeTemplateHandler
 
 # Add the project root directory to the path
 sys.path.insert(0, os.path.abspath(
