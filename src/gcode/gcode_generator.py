@@ -107,6 +107,17 @@ class GCommand:
 
         return ' '.join(command_parts)
 
+    @property
+    def pos(self) -> np.ndarray:
+        """
+        Returns the position as a numpy array.
+        If X, Y, or Z are not set, they will be NaN.
+        """
+        pos_values = [self.values[key] if self.values[key]
+                      is not None else np.nan for key in ['X', 'Y', 'Z']]
+
+        return np.array(pos_values, dtype=np.float64)
+
 
 def _calculate_build_plate_offset(params: PrintParameters,
                                   physical_print_width: float,
@@ -325,7 +336,7 @@ def _refine_segments_along_path(
     Generates Gcode segments for a path, using adaptive segmentation if enabled.
     Returns: (list of GCommand objects, updated_current_e_absolute, end_tool_position_bp).
     """
-    path_gcode_commands = []
+    path_gcommands = []
     limg = lithophane_image
     current_tool_pos_bp = start_point_path_bp.copy()
     target_end_path_bp = end_point_path_bp.copy()
@@ -393,7 +404,7 @@ def _refine_segments_along_path(
                             f=params.f_travel,
                             comment=f"Param jump: V* {v_star:.2f}, H* {h_star:.2f}"
                         )
-                        path_gcode_commands.append(str(travel_command))
+                        path_gcommands.append(travel_command)
 
             # Update state
             _parameter_state['prev_v_star'] = v_star
@@ -419,13 +430,13 @@ def _refine_segments_along_path(
                     f=F,
                     comment=f"V* {v_star:.2f}, H* {h_star:.2f}",
                 )
-                path_gcode_commands.append(str(gcommand))
+                path_gcommands.append(gcommand)
 
         # Move tool to end of this segment
         current_tool_pos_bp = segment_actual_end_bp.copy()
         distance_along_path += actual_step_taken
 
-    return path_gcode_commands, current_e_absolute, Point2D(*current_tool_pos_bp)
+    return path_gcommands, current_e_absolute, Point2D(*current_tool_pos_bp)
 
 
 def _calc_VH_stars(params: PrintParameters,
@@ -492,7 +503,7 @@ def generate_gcode(params: PrintParameters,
     from gcode.template_handler import GcodeTemplateHandler
 
     print("Generating GCode")
-    gcode_lines = []
+    gcode_strs = []
     gcommands = []
     print_start_pt_bp = Point2D(0.0, 0.0)  # Start point on the build plate
 
@@ -513,22 +524,20 @@ def generate_gcode(params: PrintParameters,
 
         processed_start_gcode = template_handler.process_template(
             params.start_gcode_filepath, template_variables)
-        gcode_lines.extend(processed_start_gcode)
-        gcode_lines.append("; --- START GCODE ---")
+        gcode_strs.extend(processed_start_gcode)
+        gcode_strs.append("; --- START GCODE ---")
     except Exception as e:
         print(f"Error processing start Gcode template: {e}")
         # Insert error message instead of reading raw file
-        gcode_lines.append("; --- START GCODE TEMPLATE ERROR ---")
-        gcode_lines.append(
+        gcode_strs.append("; --- START GCODE TEMPLATE ERROR ---")
+        gcode_strs.append(
             f"; Error: Could not process template {params.start_gcode_filepath}")
-        gcode_lines.append(f"; Details: {str(e)}")
-        gcode_lines.append(
+        gcode_strs.append(f"; Details: {str(e)}")
+        gcode_strs.append(
             "; WARNING: Start G-code not included - manual setup required")
-        gcode_lines.append("; --- END START GCODE ERROR ---")
+        gcode_strs.append("; --- END START GCODE ERROR ---")
 
-    print(gcode_lines)
-
-    gcode_lines.append("; ###SIMULATION START###")
+    gcode_strs.append("; ###SIMULATION START###")
     current_e = 0.0
 
     # Calculate offset to center the print volume on the build plate
@@ -536,7 +545,7 @@ def generate_gcode(params: PrintParameters,
     physical_print_height = lithophane_image.physical_print_height_mm
     offset = _calculate_build_plate_offset(
         params, physical_print_width, physical_print_height)
-    gcode_lines.append(
+    gcode_strs.append(
         f"; Centering print volume ({physical_print_width:.2f}x{physical_print_height:.2f} mm) on build plate ({params.printer_bed_size_mm[0]:.2f}x{params.printer_bed_size_mm[1]:.2f} mm) with offset ({offset.x:.2f}, {offset.y:.2f}) mm")
 
     # --- Generate all passes first, then iterate to generate Gcode ---
@@ -562,7 +571,9 @@ def generate_gcode(params: PrintParameters,
             e=dE,
             f=F,
             comment=f"Intro line: V* {v_star:.2f}, H* {h_star:.2f}")
-        gcode_lines.append(str(gc))
+        gcommands.append(gc)
+        gcode_strs.append(str(gc))
+        print('new gcode command:', gc)
 
         print("Refining segments...")
         for pass_idx_global, (layer, start_pt_rel, end_pt_rel) in enumerate(all_passes_relative):
@@ -574,12 +585,13 @@ def generate_gcode(params: PrintParameters,
             layer_z = layer * params.dz_mm
 
             # Generate segments along the pass
-            segment_lines, current_e, current_pos_bp = _refine_segments_along_path(
+            segment_commands, current_e, current_pos_bp = _refine_segments_along_path(
                 params, lithophane_image, current_pos_bp, end_pt_bp, layer_z, offset.x, offset.y, current_e)
-            gcode_lines.extend(segment_lines)
-        gcode_lines.append("; ###SIMULATION END###")
+            gcode_strs.extend([str(g) for g in segment_commands])
+            gcommands.extend(segment_commands)
+        gcode_strs.append("; ###SIMULATION END###")
 
-    gcode_lines.append("; --- END GCODE ---")
+    gcode_strs.append("; --- END GCODE ---")
     try:
         # Calculate estimated values for template variables
         filament_used = current_e  # Total extruded filament in mm
@@ -607,19 +619,19 @@ def generate_gcode(params: PrintParameters,
         template_handler = GcodeTemplateHandler()
         processed_end_gcode = template_handler.process_template(
             params.end_gcode_filepath, template_variables)
-        gcode_lines.extend(processed_end_gcode)
+        gcode_strs.extend(processed_end_gcode)
     except Exception as e:
         print(f"Error processing end Gcode template: {e}")
         # Insert error message instead of reading raw file
-        gcode_lines.append("; --- END GCODE TEMPLATE ERROR ---")
-        gcode_lines.append(
+        gcode_strs.append("; --- END GCODE TEMPLATE ERROR ---")
+        gcode_strs.append(
             f"; Error: Could not process template {params.end_gcode_filepath}")
-        gcode_lines.append(f"; Details: {str(e)}")
-        gcode_lines.append(
+        gcode_strs.append(f"; Details: {str(e)}")
+        gcode_strs.append(
             "; WARNING: End G-code not included - manual cleanup required")
-        gcode_lines.append("; --- END END GCODE ERROR ---")
+        gcode_strs.append("; --- END END GCODE ERROR ---")
 
-    return gcode_lines, gcommands
+    return gcode_strs, gcommands
 
 
 # Example Usage (for testing the generator function - requires dummy files and LithophaneImage)

@@ -4,6 +4,7 @@ import os
 import sys
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QDir, QSettings, Qt, Slot
 from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout,
                                QMainWindow, QMessageBox, QSizePolicy, QWidget)
@@ -45,8 +46,8 @@ class DualViewWindow(QMainWindow):
 
         # --- Right View: Placeholder for PyVista ---
         params = self.settings_dialog.get_print_parameters()
-        self.pyvista_view = GCodeViewWidget(params.printer_bed_size_mm)
-        main_layout.addWidget(self.pyvista_view, 1)
+        self.gcode_view = GCodeViewWidget(params.printer_bed_size_mm)
+        main_layout.addWidget(self.gcode_view, 1)
 
         central_widget.setLayout(main_layout)
 
@@ -140,8 +141,23 @@ class DualViewWindow(QMainWindow):
                 physical_print_width_mm=params.physical_print_width_mm
             )
 
-            # Generate G-code
-            gcode_lines = generate_gcode(params, lithophane_image)
+            # Generate G-code and render it
+            gcode_lines, gcommands = generate_gcode(params, lithophane_image)
+            points = []
+            for command in gcommands:
+                points.append(command.pos)
+            points = np.array(points)
+            # Replace NaN with previous value in the toolpath
+            points[0, np.isnan(points[0])] = 0.0  # Ensure no Nan to start
+            for row in range(1, points.shape[0]):
+                points[row, np.isnan(points[row])] = points[row-1,
+                                                            np.isnan(points[row])]
+
+            if points.shape[0] > 2:
+                self.gcode_view.add_lines(points, color='blue', width=1.0)
+            else:
+                QMessageBox.warning(
+                    self, "Insufficient Data", "Not enough points to render G-code.")
 
             # Write G-code to output file
             with open(output_path, 'w') as f:

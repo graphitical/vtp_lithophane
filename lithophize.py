@@ -151,7 +151,7 @@ def main():
 
         # Generate G-code
         print("Generating G-code...")
-        gcode_lines = generate_gcode(params, lithophane_image)
+        gcode_lines = generate_gcode(params, lithophane_image)[0]
 
         # Write G-code to output file
         print(f"Writing G-code to {args.output}...")

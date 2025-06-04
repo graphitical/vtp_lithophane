@@ -31,6 +31,8 @@ class GCodeViewWidget(QWidget):
         self.plotter.set_background("white")  # White color
         self.create_bed_mesh()  # Renamed method
 
+        self.line_actor_name = 'gcode_lines'
+
     def create_bed_mesh(self):  # Renamed from create_square_mesh
         """Creates a mesh representing the print bed and adds it to the plotter."""
         width = self.bed_x_mm
@@ -87,3 +89,35 @@ class GCodeViewWidget(QWidget):
         """Removes all actors (meshes) from the PyVista plotter."""
         self.plotter.clear_actors()
         self.plotter.reset_camera()
+
+    def add_line(self, start_pt, end_pt, color='black', width=1.0):
+        """
+        Adds a line to the plotter.
+
+        :param start_pt: Starting point of the line (x, y, z).
+        :param end_pt: Ending point of the line (x, y, z).
+        :param color: Color of the line.
+        :param width: Width of the line.
+        """
+        line = pv.Line(start_pt, end_pt)
+        self.plotter.add_mesh(line, color=color, line_width=width)
+
+        return line
+
+    def add_lines(self, points, **kwargs):
+        """
+        Updates the lines actor with new points.
+        """
+
+        if not isinstance(points, np.ndarray):
+            raise ValueError("Points must be a numpy array.")
+
+        if points.ndim != 2 or points.shape[1] != 3:
+            raise ValueError("Points must be a 2D array with shape (N, 3).")
+
+        # this does nothing if the actor does not exist
+        self.plotter.remove_actor(self.line_actor_name)
+        self.plotter.add_lines(points,
+                               name=self.line_actor_name,
+                               connected=True,
+                               **kwargs)

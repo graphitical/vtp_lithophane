@@ -105,7 +105,7 @@ class ProcessSettingsDialog(QDialog):
         vtp_layout.addRow("H* Low Density:", self.h_star_ld)
 
         self.line_spacing = QDoubleSpinBox()
-        self.line_spacing.setRange(0.1, 10.0)
+        self.line_spacing.setRange(0.1, 100.0)
         self.line_spacing.setSingleStep(0.1)
         self.line_spacing.setValue(1.2)
         self.line_spacing.setSuffix(" mm")
