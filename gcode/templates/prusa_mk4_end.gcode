@@ -8,7 +8,6 @@ G91 ; Relative positioning
 G1 E-{retract_length} F{retract_speed} ; Retract
 G90 ; Absolute positioning
 G1 Z{z_lift} F{travel_speed} ; Lift nozzle
-G28 X Y ; Home X and Y
 M84 ; Disable motors
 
 ; Print completed
