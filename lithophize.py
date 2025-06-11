@@ -5,9 +5,9 @@ import os
 import sys
 import time
 
-from gcode.gcode_generator import generate_gcode
-from gcode.image_utils import LithophaneImage
-from gcode.parameters import PrintParameters
+from src.gcode.gcode_generator import generate_gcode
+from src.gcode.image_utils import LithophaneImage
+from src.gcode.parameters import PrintParameters
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -30,27 +30,27 @@ def create_parser() -> argparse.ArgumentParser:
     vtp_params = parser.add_argument_group('VTP parameters')
     vtp_params.add_argument('--layers', type=int, default=4,
                             help='Number of layers for the lithophane')
-    vtp_params.add_argument('--v-star-hd', type=float, default=0.16,
+    vtp_params.add_argument('--v-star-hd', type=float, default=0.25,
                             help='V* value for high density (dark areas)')
-    vtp_params.add_argument('--v-star-ld', type=float, default=0.4,
+    vtp_params.add_argument('--v-star-ld', type=float, default=0.5,
                             help='V* value for low density (light areas)')
-    vtp_params.add_argument('--h-star-hd', type=float, default=2.8,
+    vtp_params.add_argument('--h-star-hd', type=float, default=5.0,
                             help='H* value for high density (dark areas)')
-    vtp_params.add_argument('--h-star-ld', type=float, default=9.0,
+    vtp_params.add_argument('--h-star-ld', type=float, default=10.0,
                             help='H* value for low density (light areas)')
 
     # Physical parameters
     physical = parser.add_argument_group('Physical parameters')
-    physical.add_argument('--alpha', type=float, default=1.,
+    physical.add_argument('--alpha', type=float, default=1.5,
                           help='Die swell constant')
     physical.add_argument('--in-flow-rate', type=float, default=50.0,
                           dest='e_dot',
                           help='Material flow rate (mm/min)')
     physical.add_argument('--line-spacing', type=float, default=1.39,
                           help='Line spacing in mm')
-    physical.add_argument('--sample-res', type=float, default=1, dest='sampling_resolution_mm',
+    physical.add_argument('--sample-res', type=float, default=0.5, dest='sampling_resolution_mm',
                           help='Physical distance step for image sampling in adaptive segmentation (mm)')
-    physical.add_argument('--layer-height', type=float, default=1.11, dest='dz_mm',
+    physical.add_argument('--layer-height', type=float, default=1, dest='dz_mm',
                           help='Nominal layer height increment (mm)')
 
     # Printer parameters

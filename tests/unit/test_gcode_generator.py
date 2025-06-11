@@ -5,19 +5,17 @@ Unit tests for G-code generation with templates.
 import os
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
-from gcode.gcode_generator import GCodeType, GCommand, generate_gcode
-from gcode.parameters import PrintParameters
-from gcode.template_handler import GcodeTemplateHandler
+from src.gcode.gcode_generator import GCodeType, GCommand, generate_gcode
+from src.gcode.parameters import PrintParameters
+from src.gcode.template_handler import GcodeTemplateHandler
 
 # Add the project root directory to the path
 sys.path.insert(0, os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../..')))
 
 # Import the modules to test
-
 
 class TestGcodeGenerator(unittest.TestCase):
     """Tests for G-code generation with templates."""
@@ -53,11 +51,11 @@ class TestGcodeGenerator(unittest.TestCase):
             retract_speed=2000.0
         )
 
-    @patch('gcode.gcode_generator._generate_entire_toolpath')
-    @patch('gcode.gcode_generator._calculate_ZFdE')
-    @patch('gcode.gcode_generator._calc_VH_stars')
-    @patch('gcode.gcode_generator._refine_segments_along_path')
-    @patch('gcode.template_handler.GcodeTemplateHandler')
+    @patch('src.gcode.gcode_generator._generate_entire_toolpath')
+    @patch('src.gcode.gcode_generator._calculate_ZFdE')
+    @patch('src.gcode.gcode_generator._calc_VH_stars')
+    @patch('src.gcode.gcode_generator._refine_segments_along_path')
+    @patch('src.gcode.template_handler.GcodeTemplateHandler')
     def test_gcode_generation_with_templates(self, mock_handler_class, mock_refine, mock_calc_stars, mock_calc_zfde, mock_toolpath):
         """Test that generate_gcode uses templates correctly."""
         # Configure mocks
@@ -122,8 +120,8 @@ class TestGcodeGenerator(unittest.TestCase):
         self.assertIn("M140 S0", result)
 
     @patch('builtins.open', new_callable=mock_open, read_data="; Dummy G-code")
-    @patch('gcode.gcode_generator._generate_entire_toolpath')
-    @patch('gcode.template_handler.GcodeTemplateHandler')
+    @patch('src.gcode.gcode_generator._generate_entire_toolpath')
+    @patch('src.gcode.template_handler.GcodeTemplateHandler')
     def test_gcode_generation_with_fallback(self, mock_handler_class, mock_toolpath, mock_open_file):
         """Test error message insertion when template processing fails."""
         # Configure mocks

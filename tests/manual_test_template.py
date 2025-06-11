@@ -4,9 +4,8 @@ Manual test script for verifying G-code template functionality.
 """
 import os
 import sys
-from pathlib import Path
 
-from gcode.template_handler import GcodeTemplateHandler
+from src.gcode.template_handler import GcodeTemplateHandler
 
 # Add the project root directory to the path
 sys.path.insert(0, os.path.abspath(

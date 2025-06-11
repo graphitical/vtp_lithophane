@@ -500,7 +500,7 @@ def generate_gcode(params: PrintParameters,
     Returns:
         A list of strings, where each string is a line of Gcode.
     """
-    from gcode.template_handler import GcodeTemplateHandler
+    from src.gcode.template_handler import GcodeTemplateHandler
 
     print("Generating GCode")
     gcode_strs = []

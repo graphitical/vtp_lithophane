@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
-from gcode.template_handler import GcodeTemplateHandler
+from src.gcode.template_handler import GcodeTemplateHandler
 
 # Add the project root directory to the path
 sys.path.insert(0, os.path.abspath(

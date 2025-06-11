@@ -292,7 +292,7 @@ class ProcessSettingsDialog(QDialog):
 
     def show_template_variables(self, template_type):
         """Show a dialog with the variables available in the template."""
-        from gcode.template_handler import GcodeTemplateHandler
+        from src.gcode.template_handler import GcodeTemplateHandler
 
         try:
             handler = GcodeTemplateHandler()
