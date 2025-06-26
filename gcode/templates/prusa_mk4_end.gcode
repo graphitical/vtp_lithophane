@@ -6,6 +6,7 @@ M140 S0 ; Turn off bed temp
 M107 ; turn off fan 
 G91 ; Relative positioning
 M221 S100; ; Always reset flow rate to 100% in case it was changed elsewhere
+M220 S100; ; Always reset speed to 100% in case it was changed elsewhere
 G1 E-{retract_length} F{retract_speed} ; Retract
 G90 ; Absolute positioning
 G1 Z{z_lift} F{travel_speed} ; Lift nozzle
