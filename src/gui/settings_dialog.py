@@ -184,7 +184,7 @@ class ProcessSettingsDialog(QDialog):
         printer_layout.addRow("Retraction Speed:", self.retract_speed)
 
         self.extrusion_multiplier = QDoubleSpinBox()
-        self.extrusion_multiplier.setRange(0.01, 1.0)
+        self.extrusion_multiplier.setRange(0.01, 10.0)
         self.extrusion_multiplier.setValue(1.2)
         self.extrusion_multiplier.setSingleStep(0.1)
         printer_layout.addRow("Extrusion Multiplier:",
@@ -475,5 +475,6 @@ class ProcessSettingsDialog(QDialog):
             retract_length=self.retract_length.value(),
             retract_speed=self.retract_speed.value(),
             printer_bed_size_mm=(self.bed_width.value(),
-                                 self.bed_height.value())
+                                 self.bed_height.value()),
+            extrusion_multiplier=self.extrusion_multiplier.value()*100,
         )
