@@ -1,39 +1,64 @@
 import subprocess
 import os
-import sys
+import argparse
 
-overwrite = len(sys.argv) > 1 and sys.argv[1] == "F"
+argument_parser = argparse.ArgumentParser(description="Batch run lithophize gcode generation.")
+argument_parser.add_argument(
+    "-F", "--force_rewrite",
+    default=False,
+    action="store_true",
+    help="Force overwrite existing G-code files."
+)
+argument_parser.add_argument(
+    "-O", "--options",
+    type=str,
+    default="",
+    help="The list of gcode files to generate."
+)
+args = argument_parser.parse_args()
+
+overwrite = args.force_rewrite
+options = args.options
 
 args_spread = ["-w", "100",
                "--line-spacing", "50",
+               "--in-flow-rate", "150",
                "--layers", "1"]
 
-args_swatch = ["-w", "10",
-               "--layers", "2"]
+args_swatch = ["-w", "20",
+               "--line-spacing", "1.5",
+               "--in-flow-rate", "100",
+            #    "-w", "10",
+            #    "--priming-line-length", "10",
+               "--layers", "1"]
+            #    "--layers", "2"]
 
-for i in range(101):
-    if os.path.exists(f"images/grayscale{i:03d}.png"):
-        if overwrite or not os.path.exists(f"gcode/outputs/grayscale{i:03d}.gcode"):
-            subprocess.run(["python", "lithophize.py",
-                            "-i", f"images/grayscale{i:03d}.png",
-                            "-o", f"gcode/outputs/grayscale{i:03d}.gcode"]\
-                                + args_swatch)
+if "L" in options:
+    for file in os.listdir("images"):
+        if file == "test_grid.png":
+            if overwrite or not os.path.exists(f"gcode/outputs/{file.replace('.png', '.gcode')}"):
+                subprocess.run(["python", "lithophize.py",
+                                "-i", f"images/{file}",
+                                "-o", f"gcode/outputs/edot150_{file.replace('.png', '.gcode')}"] \
+                                    + args_spread)
 
-for file in os.listdir("images"):
-    if file.startswith("test_grid_") and file.endswith(".png"):
-        if overwrite or not os.path.exists(f"gcode/outputs/{file.replace('.png', '.gcode')}"):
-            subprocess.run(["python", "lithophize.py",
-                            "-i", f"images/{file}",
-                            "-o", f"gcode/outputs/{file.replace('.png', '.gcode')}"] \
-                                + args_swatch)
+if "SG" in options:
+    for i in range(101):
+        if os.path.exists(f"images/grayscale{i:03d}.png"):
+            if overwrite or not os.path.exists(f"gcode/outputs/grayscale{i:03d}.gcode"):
+                subprocess.run(["python", "lithophize.py",
+                                "-i", f"images/grayscale{i:03d}.png",
+                                "-o", f"gcode/outputs/grayscale{i:03d}.gcode"]\
+                                    + args_swatch)
 
-for file in os.listdir("images"):
-    if file == "test_grid.png":
-        if overwrite or not os.path.exists(f"gcode/outputs/{file.replace('.png', '.gcode')}"):
-            subprocess.run(["python", "lithophize.py",
-                            "-i", f"images/{file}",
-                            "-o", f"gcode/outputs/{file.replace('.png', '.gcode')}"] \
-                                + args_spread)
+if "ST" in options:
+    for file in os.listdir("images"):
+        if file.startswith("test_grid_") and file.endswith(".png"):
+            if overwrite or not os.path.exists(f"gcode/outputs/ST_{file.replace('.png', '.gcode')}"):
+                subprocess.run(["python", "lithophize.py",
+                                "-i", f"images/{file}",
+                                "-o", f"gcode/outputs/edot100_{file.replace('.png', '.gcode')}"] \
+                                    + args_swatch)
 
 # for file in os.listdir("gcode/outputs"):
 #     if file.endswith(".gcode"):

@@ -46,7 +46,7 @@ def create_parser() -> argparse.ArgumentParser:
     physical.add_argument('--in-flow-rate', type=float, default=50.0,
                           dest='e_dot',
                           help='Material flow rate (mm/min)')
-    physical.add_argument('--line-spacing', type=float, default=1.39,
+    physical.add_argument('--line-spacing', type=float, default=1.5,
                           help='Line spacing in mm')
     physical.add_argument('--sample-res', type=float, default=0.5, dest='sampling_resolution_mm',
                           help='Physical distance step for image sampling in adaptive segmentation (mm)')
@@ -63,6 +63,8 @@ def create_parser() -> argparse.ArgumentParser:
                          help='Filament diameter (mm)')
     printer.add_argument('--bed-size', type=str, default='255x210',
                          help='Printer bed size in mm (format: widthxheight, e.g., 255x210)')
+    printer.add_argument('--priming-line-length', type=float, default=120.0,
+                         help='Priming line length (mm)')
 
     # G-code files
     gcode_files = parser.add_argument_group('G-code files')
@@ -138,7 +140,8 @@ def main():
             f_travel=args.f_travel,
             D_N=args.D_N,
             D_F=args.D_F,
-            printer_bed_size_mm=bed_size
+            printer_bed_size_mm=bed_size,
+            priming_line_length=args.priming_line_length
         )
 
         # Create LithophaneImage object

@@ -50,6 +50,7 @@ class PrintParameters:
     # Optional/Advanced Parameters
     printer_bed_size_mm: tuple[float, float] = field(
         default=(250.0, 210.0))  # Default to common bed size
+    priming_line_length: float = field(default=120.0)  # Default value
 
     param_change_threshold: float = field(default=0.05)
 
