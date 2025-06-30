@@ -66,4 +66,4 @@ vtp-lithophane-gui
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details (though you'll need to create a LICENSE file if you want one).
+This project is licensed under the MIT License - see the LICENSE file for details.
