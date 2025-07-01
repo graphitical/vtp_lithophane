@@ -1,0 +1,12 @@
+name: vtp_lithophane
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - pillow
+  - pyside6
+  - matplotlib
+  - setuptools
+  - pyvista
+  - pyvistaqt
