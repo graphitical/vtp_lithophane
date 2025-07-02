@@ -3,8 +3,8 @@ os.chdir("../elasticrods/build")
 import subprocess
 
 timestep = "1e-4"
-damping = "0.05"
-lame1 = "20"
+damping = "0.002"
+lame1 = "300"
 lame2 = "20"
 
 # ./extrusion -F ../gcode/PLA_Spread.gcode --headless -T 1e-4 -D 0.05 -L 140 -M 30
@@ -17,13 +17,19 @@ lame2 = "20"
 #         print(" ".join(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2]))
 #         subprocess.run(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2])
 
-for file in os.listdir("../../vtp_lithophane/gcode/outputs"):
-    if file.endswith(".gcode") and file.startswith("edot100"):
-        gcode_file = f"../../vtp_lithophane/gcode/outputs/{file}"
-        output_file = f"../outputs/{file.split('.')[0]}"
-        print(" ".join(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2]))
-        subprocess.run(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2])
+# for file in os.listdir("../../vtp_lithophane/gcode/outputs"):
+#     if file.endswith(".gcode") and file.startswith("edot100"):
+#         gcode_file = f"../../vtp_lithophane/gcode/outputs/{file}"
+#         output_file = f"../outputs/{file.split('.')[0]}"
+#         print(" ".join(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2]))
+#         subprocess.run(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2])
 
+for file in os.listdir("../../vtp_lithophane/gcode/250630"):
+    if file.endswith(".gcode"):
+        gcode_file = f"../../vtp_lithophane/gcode/250630/{file}"
+        output_file = f"../vtp_lithophane/gcode/250630/{file.split('.')[0]}"
+        print(" ".join(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2]))
+        # subprocess.run(["./extrusion", "--headless", "-F", gcode_file, "-O", output_file, "-T", timestep, "-D", damping, "-L", lame1, "-M", lame2])
 
 # for file in os.listdir("../../vtp_lithophane/gcode/outputs"):
 #     if file.endswith(".gcode") and file.startswith("grayscale"):

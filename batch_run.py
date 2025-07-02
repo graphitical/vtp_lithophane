@@ -33,6 +33,15 @@ args_swatch = ["-w", "20",
                "--layers", "1"]
             #    "--layers", "2"]
 
+args_test_grid = ["-w", "60",
+                  "--line-spacing", "1.5",
+                  "--in-flow-rate", "50",
+                  "--layers", "1",
+                  "--priming-line-length", "10",
+                #   "--start-gcode", "gcode/templates/template_start.gcode",
+                #   "--end-gcode", "gcode/templates/template_end.gcode"
+                ]
+
 if "L" in options:
     for file in os.listdir("images"):
         if file == "test_grid.png":
@@ -59,6 +68,12 @@ if "ST" in options:
                                 "-i", f"images/{file}",
                                 "-o", f"gcode/outputs/edot100_{file.replace('.png', '.gcode')}"] \
                                     + args_swatch)
+
+if "TG" in options:
+    subprocess.run(["python", "lithophize.py",
+                    "-i", "images/test_grid.png",
+                    "-o", "gcode/250702/test_grid.gcode"] \
+                        + args_test_grid)
 
 # for file in os.listdir("gcode/outputs"):
 #     if file.endswith(".gcode"):

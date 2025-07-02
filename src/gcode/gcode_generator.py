@@ -127,9 +127,10 @@ def _calculate_build_plate_offset(params: PrintParameters,
     build_plate_width, build_plate_height = params.printer_bed_size_mm
     offset_x = (build_plate_width - physical_print_width) / 2.0
     offset_y = (build_plate_height - physical_print_height) / 2.0
+    offset_x = params.priming_line_length + 0.1
+    offset_y = params.priming_line_length + 0.1
     return Point2D(offset_x, offset_y)
     # return 0., 0. # For testing only
-
 
 def _add_segment_if_moved(
     segments_list: list,
@@ -507,6 +508,8 @@ def generate_gcode(params: PrintParameters,
     gcommands = []
     print_start_pt_bp = Point2D(0.0, 0.0)  # Start point on the build plate
 
+    gcode_strs.append("; ###SIMULATION START###")
+
     # 1. Include Start Gcode with variable replacement
     try:
         template_handler = GcodeTemplateHandler()
@@ -516,7 +519,7 @@ def generate_gcode(params: PrintParameters,
             "bed_temp": params.bed_temp,
             "nozzle_temp": params.nozzle_temp,
             "travel_speed": params.f_travel,
-            "priming_line_length": 120,  # Default value
+            "priming_line_length": params.priming_line_length,
             "filament_diameter": params.D_F,
             "nozzle_diameter": params.D_N,
             "extrusion_multiplier": params.extrusion_multiplier,
@@ -538,7 +541,6 @@ def generate_gcode(params: PrintParameters,
             "; WARNING: Start G-code not included - manual setup required")
         gcode_strs.append("; --- END START GCODE ERROR ---")
 
-    gcode_strs.append("; ###SIMULATION START###")
     current_e = 0.0
 
     # Calculate offset to center the print volume on the build plate
