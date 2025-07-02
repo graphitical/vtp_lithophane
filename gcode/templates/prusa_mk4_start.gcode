@@ -12,6 +12,8 @@ M862.3 P "MK4" ; printer model check
 M862.1 P0.4 ; nozzle diameter check 
 G90 ; use absolute coordinates 
 M83  ; extruder relative mode 
+M221 S{extrusion_multiplier}; 
+M220 S100; Always reset speed multiplier to 100% in case it was changed elsewhere
 
 ; Set temperatures
 M104 S{nozzle_temp} ; Set extruder temperature

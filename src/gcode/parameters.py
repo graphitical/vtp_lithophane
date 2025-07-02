@@ -42,6 +42,9 @@ class PrintParameters:
     # Printer temperature settings
     bed_temp: float = field(default=60.0)  # Bed temperature (°C)
     nozzle_temp: float = field(default=200.0)  # Nozzle temperature (°C)
+    # Multiplier for extrusion flow rate
+    extrusion_multiplier: float = field(
+        default=100.0)  # M221 value in percentage
 
     # Retraction settings
     retract_length: float = field(default=5.0)  # Retraction length (mm)

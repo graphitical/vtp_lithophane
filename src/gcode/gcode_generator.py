@@ -519,6 +519,7 @@ def generate_gcode(params: PrintParameters,
             "priming_line_length": 120,  # Default value
             "filament_diameter": params.D_F,
             "nozzle_diameter": params.D_N,
+            "extrusion_multiplier": params.extrusion_multiplier,
             # Add any additional variables that might be needed
         }
 
