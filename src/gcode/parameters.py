@@ -27,7 +27,7 @@ class PrintParameters:
     e_dot: float  # Material flow rate (mm/min) - Units clarified
 
     # Toolpath Parameters
-    line_spacing_mm: float | None # Your 'dL' or lambda
+    line_spacing_mm: float | None  # Your 'dL' or lambda
     line_spacing_list: list[float]
     # Physical distance step for image sampling in adaptive segmentation - Renamed
     sampling_resolution_mm: float
@@ -94,6 +94,8 @@ class PrintParameters:
             raise ValueError("Line spacing must be specified.")
         if self.line_spacing_mm is not None and self.line_spacing_mm <= 0:
             raise ValueError("Line spacing must be positive.")
+        if len(self.line_spacing_list) == 0:
+            self.line_spacing_list = [self.line_spacing_mm]
         for spacing in self.line_spacing_list:
             if spacing <= 0:
                 raise ValueError("Line spacing must be positive.")

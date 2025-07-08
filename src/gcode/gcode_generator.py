@@ -5,8 +5,8 @@ from enum import Enum
 import numpy as np
 from PIL import Image
 
-from .image_utils import LithophaneImage
-from .parameters import PrintParameters
+from gcode.image_utils import LithophaneImage
+from gcode.parameters import PrintParameters
 
 
 class Point2D:
@@ -520,7 +520,7 @@ def generate_gcode(params: PrintParameters,
     Returns:
         A list of strings, where each string is a line of Gcode.
     """
-    from src.gcode.template_handler import GcodeTemplateHandler
+    from gcode.template_handler import GcodeTemplateHandler
 
     print("Generating GCode")
     gcode_strs = []
@@ -717,11 +717,14 @@ if __name__ == '__main__':
             v_star_ld=0.4,
             h_star_hd=6.93,
             h_star_ld=14.81,
+            dL_hd=1.5,
+            dL_ld=4.5,
             alpha=1.,
             D_N=0.4,
             D_F=1.75,
             e_dot=50.0,  # mm/min
             line_spacing_mm=1.2,
+            line_spacing_list=[],
             sampling_resolution_mm=1.,
             dz_mm=1.27,
             start_gcode_filepath=dummy_start_gcode_path,

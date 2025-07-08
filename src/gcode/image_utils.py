@@ -4,7 +4,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 
 class LithophaneImage:
@@ -35,7 +35,9 @@ class LithophaneImage:
         self.physical_print_width_mm = physical_print_width_mm
         # Physical print height will be derived from image aspect ratio
         self.physical_print_height_mm = 0.0  # Will be calculated after image load
+        self._raw_image = None  # Store the Pillow image internally
         self._image = None  # Store the Pillow image internally
+        self.quantization_levels = 5
 
         self._load_and_process_image()
 
@@ -48,7 +50,13 @@ class LithophaneImage:
             img = Image.open(self.filepath)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            self._image = img
+            self._raw_image = img
+
+            if self.quantization_levels > 0:
+                self._image = self._quantize_img(img)
+            else:
+                self._image = img.convert('L')
+
         except Exception as e:
             raise IOError(
                 f"Could not open or process image file {self.filepath}: {e}")
@@ -78,6 +86,24 @@ class LithophaneImage:
         # Calculate scaling factors from physical mm to image pixels
         self.scale_x_mm_to_px = img_width_px / self.scaled_img_physical_width_mm
         self.scale_y_mm_to_px = img_height_px / self.scaled_img_physical_height_mm
+
+    def _quantize_img(self, img):
+        filter_size = max(3, img.width // 100)
+        if filter_size % 2 == 0:
+            filter_size += 1
+
+        gray_image = img.convert('L')
+        denoised_image = gray_image.filter(
+            ImageFilter.MedianFilter(size=filter_size))
+        smoothed_image = denoised_image.filter(ImageFilter.SMOOTH_MORE)
+        quantized_image = smoothed_image.quantize(
+            self.quantization_levels)
+        lo, hi = quantized_image.getextrema()
+
+        # Create a lookup table for scaling to full 0-255 range
+        lut = [255 - int((i - lo) / (hi - lo) * 255.)
+               for i in range(256)]
+        return quantized_image.point(lut, mode='L')
 
     def get_pixel_value(self, query_x_mm: float, query_y_mm: float, binarize: bool = True) -> np.ndarray:
         """

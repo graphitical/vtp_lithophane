@@ -44,7 +44,7 @@ class DualViewWindow(QMainWindow):
         self.image_view = ImageViewWidget()  # Use the custom widget
         main_layout.addWidget(self.image_view, 1)
 
-        # --- Right View: Placeholder for PyVista ---
+        # --- Right View: GCode View ---
         params = self.settings_dialog.get_print_parameters()
         self.gcode_view = GCodeViewWidget(params.printer_bed_size_mm)
         main_layout.addWidget(self.gcode_view, 1)
@@ -75,11 +75,19 @@ class DualViewWindow(QMainWindow):
         )
 
         if image_path:
+            params = self.settings_dialog.get_print_parameters()
+            # Create LithophaneImage object
+            lithophane_image = LithophaneImage(
+                filepath=image_path,
+                physical_print_width_mm=params.physical_print_width_mm
+            )
+
             # Store the directory for next time
             self.settings.setValue(
                 "last_image_directory", os.path.dirname(image_path))
             self.current_image_path = image_path
-            self.image_view.set_image_path(image_path)
+            # self.image_view.set_image_path(image_path)
+            self.image_view.set_lithophane_image(lithophane_image)
 
             if hasattr(self, 'settings_dialog') and self.settings_dialog:
                 self.settings_dialog.image_path.setText(

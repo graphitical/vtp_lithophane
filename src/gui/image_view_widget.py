@@ -2,6 +2,7 @@
 
 import os
 
+from PIL.ImageQt import ImageQt
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QSizePolicy
@@ -72,6 +73,32 @@ class ImageViewWidget(QLabel):
             self.original_pixmap = loaded_pixmap
             self._set_success_appearance()
             self.setText("")  # Clear any previous text
+            self._scale_and_display_pixmap()
+
+    def set_lithophane_image(self, lithophane_image):
+        """
+        Sets the lithophane image and displays it.
+        This method is used when a LithophaneImage object is available.
+        """
+        if not lithophane_image or not lithophane_image._image:
+            self.clear_image()
+            return
+
+        self.current_image_path = lithophane_image.filepath
+        # self.original_pixmap = QPixmap.fromImage(
+        # lithophane_image._image.convert('RGB'))
+        pil_img = lithophane_image._image.convert('RGB')
+        qimg = ImageQt(pil_img)
+        self.original_pixmap = QPixmap.fromImage(qimg)
+
+        if self.original_pixmap.isNull():
+            error_message = f"Error: Could not convert lithophane image to pixmap."
+            print(error_message)
+            self.setText(error_message)
+            self._set_error_appearance()
+        else:
+            self._set_success_appearance()
+            self.setText("")
             self._scale_and_display_pixmap()
 
     def clear_image(self):

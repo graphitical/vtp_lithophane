@@ -4,7 +4,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 # Assuming main_window.py is in the same gui directory
-from .main_window import DualViewWindow
+from gui.main_window import DualViewWindow
 
 
 def run():

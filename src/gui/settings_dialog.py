@@ -8,8 +8,8 @@ from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QDoubleSpinBox,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget,
                                QVBoxLayout, QWidget)
 
-from gcode.parameters import PrintParameters
 from gcode.gcode_generator import parse_line_spacing_list
+from gcode.parameters import PrintParameters
 
 
 class ProcessSettingsDialog(QDialog):
@@ -113,7 +113,7 @@ class ProcessSettingsDialog(QDialog):
         vtp_layout.addRow("Line Spacing (dL):", self.line_spacing)
 
         self.line_spacing_list = QLineEdit()
-        self.line_spacing_list.setPlaceholderText("1.5,2.0,2.5")
+        self.line_spacing_list.setText("1.5,2.0,2.5")
         vtp_layout.addRow("Line Spacing List:", self.line_spacing_list)
 
         self.layer_height = QDoubleSpinBox()
@@ -297,7 +297,7 @@ class ProcessSettingsDialog(QDialog):
 
     def show_template_variables(self, template_type):
         """Show a dialog with the variables available in the template."""
-        from src.gcode.template_handler import GcodeTemplateHandler
+        from gcode.template_handler import GcodeTemplateHandler
 
         try:
             handler = GcodeTemplateHandler()
@@ -468,7 +468,8 @@ class ProcessSettingsDialog(QDialog):
             alpha=self.alpha.value(),
             e_dot=self.e_dot.value(),
             line_spacing_mm=self.line_spacing.value(),
-            line_spacing_list=parse_line_spacing_list(self.line_spacing_list.value()),
+            line_spacing_list=parse_line_spacing_list(
+                self.line_spacing_list.text()),
             sampling_resolution_mm=self.sampling_resolution.value(),
             dz_mm=self.layer_height.value(),
             start_gcode_filepath=self.start_gcode.text(),
@@ -483,4 +484,6 @@ class ProcessSettingsDialog(QDialog):
             printer_bed_size_mm=(self.bed_width.value(),
                                  self.bed_height.value()),
             extrusion_multiplier=self.extrusion_multiplier.value()*100,
+            dL_hd=parse_line_spacing_list(self.line_spacing_list.text())[0],
+            dL_ld=parse_line_spacing_list(self.line_spacing_list.text())[-1],
         )
