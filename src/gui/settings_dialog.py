@@ -75,6 +75,13 @@ class ProcessSettingsDialog(QDialog):
         self.layers.setValue(4)
         process_layout.addRow("Number of Layers:", self.layers)
 
+        self.quantization_levels = QSpinBox()
+        self.quantization_levels.setToolTip(
+            "Number of quanization levels. Set to 0 for no quantization.")
+        self.quantization_levels.setRange(0, 10)
+        self.quantization_levels.setValue(5)
+        process_layout.addRow("Quantization Levels:", self.quantization_levels)
+
         # VTP Parameters Tab
         vtp_tab = QWidget()
         vtp_layout = QFormLayout(vtp_tab)
@@ -337,6 +344,9 @@ class ProcessSettingsDialog(QDialog):
         self.settings.setValue("image_path", self.image_path.text())
         self.settings.setValue("physical_width", self.physical_width.value())
         self.settings.setValue("layers", self.layers.value())
+        self.settings.setValue("quantization_levels",
+                               self.quantization_levels.value())
+        # VTP parameters
         self.settings.setValue("v_star_hd", self.v_star_hd.value())
         self.settings.setValue("v_star_ld", self.v_star_ld.value())
         self.settings.setValue("h_star_hd", self.h_star_hd.value())
@@ -364,6 +374,7 @@ class ProcessSettingsDialog(QDialog):
 
     def load_settings(self):
         """Load settings from QSettings."""
+        # Image and Dimensions
         if self.settings.contains("image_path"):
             self.image_path.setText(self.settings.value("image_path"))
         if self.settings.contains("physical_width"):
@@ -371,6 +382,10 @@ class ProcessSettingsDialog(QDialog):
                 float(self.settings.value("physical_width")))
         if self.settings.contains("layers"):
             self.layers.setValue(int(self.settings.value("layers")))
+        if self.settings.contains("quantization_levels"):
+            self.quantization_levels.setValue(
+                int(self.settings.value("quantization_levels")))
+        # VTP parameters
         if self.settings.contains("v_star_hd"):
             self.v_star_hd.setValue(float(self.settings.value("v_star_hd")))
         if self.settings.contains("v_star_ld"):

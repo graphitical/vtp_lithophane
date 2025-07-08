@@ -35,7 +35,7 @@ def create_main_menu(main_window):
 
     import_action = QAction("&Import Image", main_window)
     import_action.setShortcut(QKeySequence("Ctrl+I"))
-    import_action.triggered.connect(main_window.import_image)
+    import_action.triggered.connect(main_window.load_image)
     file_menu.addAction(import_action)
 
     file_menu.addSeparator()

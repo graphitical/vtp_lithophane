@@ -63,7 +63,7 @@ class DualViewWindow(QMainWindow):
         QMessageBox.information(self, "Not Implemented",
                                 "Save file functionality not implemented yet.")
 
-    def import_image(self):
+    def load_image(self):
         """Opens a dialog to import an image and tells ImageViewWidget to display it."""
         # Get last used directory from settings
         last_dir = str(self.settings.value(
@@ -75,23 +75,37 @@ class DualViewWindow(QMainWindow):
         )
 
         if image_path:
-            params = self.settings_dialog.get_print_parameters()
-            # Create LithophaneImage object
-            lithophane_image = LithophaneImage(
-                filepath=image_path,
-                physical_print_width_mm=params.physical_print_width_mm
-            )
-
             # Store the directory for next time
             self.settings.setValue(
                 "last_image_directory", os.path.dirname(image_path))
             self.current_image_path = image_path
+
             # self.image_view.set_image_path(image_path)
-            self.image_view.set_lithophane_image(lithophane_image)
+            self.render_image()
 
             if hasattr(self, 'settings_dialog') and self.settings_dialog:
                 self.settings_dialog.image_path.setText(
                     self.current_image_path)
+
+    def render_image(self) -> None:
+        if self.current_image_path is None:
+            QMessageBox.warning(
+                self, "No Image Loaded to Render", "Please load an image first.")
+            return
+        params = self.settings_dialog.get_print_parameters()
+        if not params:
+            QMessageBox.warning(
+                self, "Invalid Settings", "Please configure the print settings first.")
+            return
+
+        lithophane_image = LithophaneImage(
+            filepath=self.current_image_path,
+            physical_print_width_mm=params.physical_print_width_mm
+        )
+        qlvls = self.settings_dialog.quantization_levels.value()
+        if qlvls > 0:
+            lithophane_image.quantize_img(qlvls)
+        self.image_view.set_lithophane_image(lithophane_image)
 
     def open_process_settings(self):
         """Open the process settings dialog."""
@@ -107,6 +121,11 @@ class DualViewWindow(QMainWindow):
             # User clicked OK - settings have been saved internally
             QMessageBox.information(
                 self, "Settings Saved", "Process settings have been updated.")
+            self.render_image()  # Reload image with new settings
+        else:
+            # User clicked Cancel - do not update settings
+            QMessageBox.information(
+                self, "Settings Cancelled", "Process settings were not changed.")
 
     def generate_gcode(self):
         """Generate G-code based on current settings."""
