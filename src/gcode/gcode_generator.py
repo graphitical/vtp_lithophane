@@ -127,8 +127,10 @@ def _calculate_build_plate_offset(params: PrintParameters,
     build_plate_width, build_plate_height = params.printer_bed_size_mm
     offset_x = (build_plate_width - physical_print_width) / 2.0
     offset_y = (build_plate_height - physical_print_height) / 2.0
-    offset_x = params.priming_line_length + 0.1
-    offset_y = params.priming_line_length + 0.1
+    # This is for stablizing simulation only
+    if params.priming_line_length != 120.0:
+        offset_x = params.priming_line_length + 0.1
+        offset_y = params.priming_line_length + 0.1
     return Point2D(offset_x, offset_y)
     # return 0., 0. # For testing only
 
@@ -255,8 +257,10 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
         - end point (Point2D)
     """
     paths_list = []
-    short_step = params.line_spacing_mm
     num_layers = params.num_layers  # Total number of X or Y raster fill passes
+    short_steps = params.line_spacing_list
+    if len(short_steps) == 0:
+        short_steps = [params.line_spacing_mm] * params.num_layers
 
     tool_pos = Point2D(0.0, 0.0)  # Tool starts at origin
 
@@ -267,10 +271,11 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
 
     epsilon = 1e-6
 
-    if short_step <= epsilon:
-        print(
-            f"Warning: line_spacing_mm {short_step:.2e} is critically small or zero. No toolpath will be generated.")
-        return []
+    for short_step in short_steps:
+        if short_step <= epsilon:
+            print(
+                f"Warning: line_spacing_mm {short_step:.2e} is critically small or zero. No toolpath will be generated.")
+            return []
 
     for layer_idx in range(num_layers):
         is_x_pass = layer_idx % 2 == 0
@@ -300,7 +305,7 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
             is_x_primary_pass=is_x_pass,
             physical_print_width=physical_print_width,
             physical_print_height=physical_print_height,
-            short_step=short_step,
+            short_step=short_steps[layer_idx],
             overall_scan_direction_fwd=current_pass_overall_fwd_direction,
             layer_idx=layer_idx,
             epsilon=epsilon
@@ -488,6 +493,7 @@ def _calculate_ZFdE(params,
 
     return float(segment_Z), float(segment_F), float(delta_E)
 
+# TODO: add code to extract dL from images
 
 def generate_gcode(params: PrintParameters,
                    lithophane_image: LithophaneImage) -> tuple[list[str], list[GCommand]]:

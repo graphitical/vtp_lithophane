@@ -19,13 +19,16 @@ class PrintParameters:
     v_star_ld: float
     h_star_hd: float
     h_star_ld: float
+    dL_hd: float
+    dL_ld: float
 
     # Physical Constants and Flow Rate
     alpha: float  # Die swell constant
     e_dot: float  # Material flow rate (mm/min) - Units clarified
 
     # Toolpath Parameters
-    line_spacing_mm: float  # Your 'dL' or lambda
+    line_spacing_mm: float | None # Your 'dL' or lambda
+    line_spacing_list: list[float]
     # Physical distance step for image sampling in adaptive segmentation - Renamed
     sampling_resolution_mm: float
     dz_mm: float  # Nominal layer height increment
@@ -82,11 +85,18 @@ class PrintParameters:
             raise ValueError("V* values must be non-negative.")
         if self.h_star_hd < 0 or self.h_star_ld < 0:  # Assuming H* should be non-negative
             raise ValueError("H* values must be non-negative.")
+        if self.dL_hd < 0 or self.dL_ld < 0:  # dL values must be non-negative
+            raise ValueError("dL values must be non-negative.")
         if self.alpha <= 0 or self.D_N <= 0 or self.A_F <= 0 or self.A_T <= 0 or self.e_dot <= 0:
             raise ValueError(
                 "Physical constants (alpha, D_N, A_F, A_T, e_dot) must be positive.")
-        if self.line_spacing_mm <= 0:
+        if self.line_spacing_mm is None and len(self.line_spacing_list) == 0:
+            raise ValueError("Line spacing must be specified.")
+        if self.line_spacing_mm is not None and self.line_spacing_mm <= 0:
             raise ValueError("Line spacing must be positive.")
+        for spacing in self.line_spacing_list:
+            if spacing <= 0:
+                raise ValueError("Line spacing must be positive.")
         if self.sampling_resolution_mm <= 0:  # Updated validation for new name
             raise ValueError("Sampling resolution must be positive.")
         if self.dz_mm <= 0:
@@ -117,11 +127,14 @@ if __name__ == '__main__':
             v_star_ld=0.8,
             h_star_hd=5.0,
             h_star_ld=10.0,
+            dL_hd=5.0,
+            dL_ld=1.0,
             alpha=1.18,  # Example value from paper
             D_N=0.4,    # Example nozzle diameter
             D_F=1.75,
             e_dot=5.0,  # Example flow rate mm/min
             line_spacing_mm=0.5,
+            line_spacing_list=[0.5, 1.0, 1.5],
             sampling_resolution_mm=0.25,  # Updated parameter name
             dz_mm=0.2,
             start_gcode_filepath=dummy_start_gcode_path,
@@ -141,7 +154,7 @@ if __name__ == '__main__':
         invalid_params = PrintParameters(
             image_filepath="non_existent_image.png",  # This file does not exist
             physical_print_width_mm=50.0, num_layers=100, v_star_hd=0.2, v_star_ld=0.8,
-            h_star_hd=5.0, h_star_ld=10.0, alpha=1.0, D_N=0.4, e_dot=1.0,
+            h_star_hd=5.0, h_star_ld=10.0, dL_hd=5.0, dL_ld=1.0, alpha=1.0, D_N=0.4, e_dot=1.0,
             line_spacing_mm=0.5, sampling_resolution_mm=0.25, dz_mm=0.2,  # Updated parameter name
             start_gcode_filepath="dummy_start.gcode", end_gcode_filepath="dummy_end.gcode"
         )
