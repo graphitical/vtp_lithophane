@@ -5,9 +5,10 @@ A "Viscous Thread Printing" (VTP) Lithophane G-code Generator with a GUI. This t
 ## Features (Current & Planned)
 
 * Image import and display
-* (Planned) G-code generation for VTP lithophanes
-* (Planned) 3D preview of the toolpath using PyVista
-* (Planned) Configurable processing settings
+* G-code generation for VTP lithophanes
+* 3D preview of the toolpath using PyVista
+* Configurable processing settings
+* (Planned) Color-coded toolpath for V*
 
 ## Requirements
 
