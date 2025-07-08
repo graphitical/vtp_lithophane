@@ -7,13 +7,13 @@ A "Viscous Thread Printing" (VTP) Lithophane G-code Generator with a GUI. This t
 * Image import and display
 * G-code generation for VTP lithophanes
 * 3D preview of the toolpath using PyVista
-* Configurable processing settings
+* UI configurable processing settings
 * (Planned) Color-coded toolpath for V*
 
 ## Requirements
 
-This project was developed and tested using Python 3.13.3. 
-While it may work with other versions, compatibility is not guaranteed.
+This project was developed and tested using Python 3.13.3 in Ubuntu 22.04 via WSLg. 
+While it may work with with other versions and systems, compatibility is not guaranteed.
 All other dependencies are captured in the `environment.yml` file.
 
 ## Installation

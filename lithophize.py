@@ -5,7 +5,7 @@ import os
 import sys
 import time
 
-from src.gcode.gcode_generator import generate_gcode
+from src.gcode.gcode_generator import generate_gcode, parse_line_spacing_list
 from src.gcode.image_utils import LithophaneImage
 from src.gcode.parameters import PrintParameters
 
@@ -91,15 +91,6 @@ def parse_bed_size(bed_size_str: str) -> tuple[float, float]:
         raise ValueError(
             f"Invalid bed size format: {bed_size_str}. Expected format: widthxheight (e.g., 235x235)")
 
-def parse_line_spacing_list(line_spacing_list_str: str | None) -> list[float]:
-    """Parse the line spacing list string (format: "1.5,2.0,2.5") to a list of floats."""
-    try:
-        if line_spacing_list_str is None:
-            return []
-        return [float(spacing) for spacing in line_spacing_list_str.split(',')]
-    except ValueError:
-        raise ValueError(
-            f"Invalid line spacing list format: {line_spacing_list_str}. Expected format: '1.5,2.0,2.5'")
 
 def validate_files(args) -> None:
     """Validate that all required files exist."""

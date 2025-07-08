@@ -134,6 +134,7 @@ def _calculate_build_plate_offset(params: PrintParameters,
     return Point2D(offset_x, offset_y)
     # return 0., 0. # For testing only
 
+
 def _add_segment_if_moved(
     segments_list: list,
     layer_idx: int,
@@ -494,6 +495,18 @@ def _calculate_ZFdE(params,
     return float(segment_Z), float(segment_F), float(delta_E)
 
 # TODO: add code to extract dL from images
+
+
+def parse_line_spacing_list(line_spacing_list_str: str | None) -> list[float]:
+    """Parse the line spacing list string (format: "1.5,2.0,2.5") to a list of floats."""
+    try:
+        if line_spacing_list_str is None:
+            return []
+        return [float(spacing) for spacing in line_spacing_list_str.split(',')]
+    except ValueError:
+        raise ValueError(
+            f"Invalid line spacing list format: {line_spacing_list_str}. Expected format: '1.5,2.0,2.5'")
+
 
 def generate_gcode(params: PrintParameters,
                    lithophane_image: LithophaneImage) -> tuple[list[str], list[GCommand]]:
