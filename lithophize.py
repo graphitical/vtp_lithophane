@@ -5,9 +5,9 @@ import os
 import sys
 import time
 
-from gcode.gcode_generator import generate_gcode
-from gcode.image_utils import LithophaneImage
-from gcode.parameters import PrintParameters
+from src.gcode.gcode_generator import generate_gcode
+from src.gcode.image_utils import LithophaneImage
+from src.gcode.parameters import PrintParameters
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -30,27 +30,33 @@ def create_parser() -> argparse.ArgumentParser:
     vtp_params = parser.add_argument_group('VTP parameters')
     vtp_params.add_argument('--layers', type=int, default=4,
                             help='Number of layers for the lithophane')
-    vtp_params.add_argument('--v-star-hd', type=float, default=0.16,
+    vtp_params.add_argument('--v-star-hd', type=float, default=0.25,
                             help='V* value for high density (dark areas)')
-    vtp_params.add_argument('--v-star-ld', type=float, default=0.4,
+    vtp_params.add_argument('--v-star-ld', type=float, default=0.5,
                             help='V* value for low density (light areas)')
-    vtp_params.add_argument('--h-star-hd', type=float, default=2.8,
+    vtp_params.add_argument('--h-star-hd', type=float, default=5.0,
                             help='H* value for high density (dark areas)')
-    vtp_params.add_argument('--h-star-ld', type=float, default=9.0,
+    vtp_params.add_argument('--h-star-ld', type=float, default=10.0,
                             help='H* value for low density (light areas)')
+    vtp_params.add_argument('--dL_hd', type=float, default=5.0,
+                            help='dL value for high density (dark areas)')
+    vtp_params.add_argument('--dL_ld', type=float, default=1.0,
+                            help='dL value for low density (light areas)')
 
     # Physical parameters
     physical = parser.add_argument_group('Physical parameters')
-    physical.add_argument('--alpha', type=float, default=1.,
+    physical.add_argument('--alpha', type=float, default=1.5,
                           help='Die swell constant')
     physical.add_argument('--in-flow-rate', type=float, default=50.0,
                           dest='e_dot',
                           help='Material flow rate (mm/min)')
-    physical.add_argument('--line-spacing', type=float, default=1.39,
+    physical.add_argument('--line-spacing', type=float, default=None,
                           help='Line spacing in mm')
-    physical.add_argument('--sample-res', type=float, default=1, dest='sampling_resolution_mm',
+    physical.add_argument('--line-spacing-list', type=str, default=None,
+                          help='list of line spacings in mm, separated by commas')
+    physical.add_argument('--sample-res', type=float, default=0.5, dest='sampling_resolution_mm',
                           help='Physical distance step for image sampling in adaptive segmentation (mm)')
-    physical.add_argument('--layer-height', type=float, default=1.11, dest='dz_mm',
+    physical.add_argument('--layer-height', type=float, default=1, dest='dz_mm',
                           help='Nominal layer height increment (mm)')
 
     # Printer parameters
@@ -63,6 +69,8 @@ def create_parser() -> argparse.ArgumentParser:
                          help='Filament diameter (mm)')
     printer.add_argument('--bed-size', type=str, default='255x210',
                          help='Printer bed size in mm (format: widthxheight, e.g., 255x210)')
+    printer.add_argument('--priming-line-length', type=float, default=120.0,
+                         help='Priming line length (mm)')
 
     # G-code files
     gcode_files = parser.add_argument_group('G-code files')
@@ -83,6 +91,15 @@ def parse_bed_size(bed_size_str: str) -> tuple[float, float]:
         raise ValueError(
             f"Invalid bed size format: {bed_size_str}. Expected format: widthxheight (e.g., 235x235)")
 
+def parse_line_spacing_list(line_spacing_list_str: str | None) -> list[float]:
+    """Parse the line spacing list string (format: "1.5,2.0,2.5") to a list of floats."""
+    try:
+        if line_spacing_list_str is None:
+            return []
+        return [float(spacing) for spacing in line_spacing_list_str.split(',')]
+    except ValueError:
+        raise ValueError(
+            f"Invalid line spacing list format: {line_spacing_list_str}. Expected format: '1.5,2.0,2.5'")
 
 def validate_files(args) -> None:
     """Validate that all required files exist."""
@@ -116,6 +133,9 @@ def main():
         # Parse bed size
         bed_size = parse_bed_size(args.bed_size)
 
+        # Parse line spacing list
+        line_spacings = parse_line_spacing_list(args.line_spacing_list)
+
         print(f"Processing image: {args.image}")
         print(f"Output G-code will be saved to: {args.output}")
 
@@ -128,9 +148,12 @@ def main():
             v_star_ld=args.v_star_ld,
             h_star_hd=args.h_star_hd,
             h_star_ld=args.h_star_ld,
+            dL_hd=args.dL_hd,
+            dL_ld=args.dL_ld,
             alpha=args.alpha,
             e_dot=args.e_dot,
             line_spacing_mm=args.line_spacing,
+            line_spacing_list=line_spacings,
             sampling_resolution_mm=args.sampling_resolution_mm,
             dz_mm=args.dz_mm,
             start_gcode_filepath=args.start_gcode,
@@ -138,7 +161,8 @@ def main():
             f_travel=args.f_travel,
             D_N=args.D_N,
             D_F=args.D_F,
-            printer_bed_size_mm=bed_size
+            printer_bed_size_mm=bed_size,
+            priming_line_length=args.priming_line_length
         )
 
         # Create LithophaneImage object

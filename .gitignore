@@ -1,7 +1,9 @@
 experiments/
 dummy*
 grayscale*
-test_grid*
+*test_grid*
+gcode/*
+.DS_Store
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
