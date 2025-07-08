@@ -85,6 +85,9 @@ class LithophaneImage:
     def quantize_img(self, quantization_levels: int = 3) -> None:
         if self._raw_image is None:
             raise ValueError("Image not loaded. Cannot quantize.")
+        if quantization_levels < 2:
+            self._image = self._raw_image.copy()
+            return
 
         filter_size = max(3, self._raw_image.width // 100)
         if filter_size % 2 == 0:

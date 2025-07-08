@@ -80,7 +80,6 @@ class DualViewWindow(QMainWindow):
                 "last_image_directory", os.path.dirname(image_path))
             self.current_image_path = image_path
 
-            # self.image_view.set_image_path(image_path)
             self.render_image()
 
             if hasattr(self, 'settings_dialog') and self.settings_dialog:
@@ -89,8 +88,9 @@ class DualViewWindow(QMainWindow):
 
     def render_image(self) -> None:
         if self.current_image_path is None:
-            QMessageBox.warning(
-                self, "No Image Loaded to Render", "Please load an image first.")
+            # No image loaded means we fail silently
+            # QMessageBox.warning(
+            # self, "No Image Loaded", "Please load an image first.")
             return
         params = self.settings_dialog.get_print_parameters()
         if not params:
@@ -103,8 +103,7 @@ class DualViewWindow(QMainWindow):
             physical_print_width_mm=params.physical_print_width_mm
         )
         qlvls = self.settings_dialog.quantization_levels.value()
-        if qlvls > 0:
-            lithophane_image.quantize_img(qlvls)
+        lithophane_image.quantize_img(qlvls)
         self.image_view.set_lithophane_image(lithophane_image)
 
     def open_process_settings(self):
