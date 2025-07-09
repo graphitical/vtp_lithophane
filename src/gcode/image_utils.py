@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageFilter
 
+from gcode.lut import LUT
+
 
 class LithophaneImage:
     """
@@ -37,6 +39,7 @@ class LithophaneImage:
         self.physical_print_height_mm = 0.0  # Will be calculated after image load
         self._raw_image = None  # Store the Pillow image internally
         self._image = None  # Processed image
+        self._layer_images = []  # Store per layer images for V*/H* interpolation
 
         self._load_and_process_image()
 
@@ -97,11 +100,70 @@ class LithophaneImage:
         self.scale_x_mm_to_px = img_width_px / self.scaled_img_physical_width_mm
         self.scale_y_mm_to_px = img_height_px / self.scaled_img_physical_height_mm
 
-    def quantize_img(self, quantization_levels: int = 3) -> None:
+    def update_image(self, quantization_levels: int = 0, bounds: tuple = (0, 255)) -> None:
+        """
+        Updates the image by quantizing it to the specified number of levels.
+        This is useful for creating lithophanes with varying light transmission.
+        Right now this just quantizes, but is here to expose the functionality
+        for future enhancements like applying different filters or effects.
+
+        Args:
+            quantization_levels: The number of quantization levels (default is 3).
+            bounds: The bounds for quantization (default is (0, 255)).
+        """
+        if quantization_levels > 2:
+            self._quantize_image(quantization_levels, bounds)
+
+        self._generate_layer_images()
+
+    def get_layer_image(self, layer_index: int) -> Image.Image:
+        """
+        Returns the image for a specific layer based on the layer index.
+        Layer 0 corresponds to the first layer, and layer 1 corresponds to the second layer.
+
+        Args:
+            layer_index: The index of the layer (0 or 1).
+
+        Returns:
+            The PIL Image for the specified layer.
+
+        Raises:
+            IndexError: If the layer index is out of bounds (not 0 or 1).
+        """
+        if self._layer_images is None or len(self._layer_images) < 2:
+            raise ValueError(
+                "Layer images not generated. Call update_image first.")
+
+        if layer_index < 0 or layer_index >= len(self._layer_images):
+            raise IndexError(
+                f"Layer index {layer_index} out of bounds. Must be 0 or 1.")
+
+        return self._layer_images[layer_index]
+
+    def _generate_layer_images(self) -> None:
+        """
+        Generates layer images based on the current image.
+        This method uses the LUT to create two layer images for lithophane generation.
+        """
+        if self._image is None:
+            raise ValueError("Image not loaded. Cannot generate layer images.")
+
+        pix = np.asarray(self._image.convert("L"), dtype=np.uint8)  # (H, W)
+        maps = LUT[pix]  # (H, W, 2, 3)
+
+        layer0 = Image.fromarray(maps[:, :, 0, :], mode="RGB")  # First layer
+        layer1 = Image.fromarray(maps[:, :, 1, :], mode="RGB")  # Second layer
+        self._layer_images = [layer0, layer1]
+
+    def _quantize_image(self, quantization_levels: int = 2, bounds: tuple = (0, 255)) -> None:
+        """
+        Grayscales and quantizes the image to the specified number of levels.
+        This method applies a median filter to reduce noise, smooths the image, quantizes it to the specified number of levels, and then scales the pixel values to the specified bounds if we want to clip it.
+        """
         if self._raw_image is None:
             raise ValueError("Image not loaded. Cannot quantize.")
         if quantization_levels < 2:
-            self._image = self._raw_image.copy()
+            self._image = self._raw_image.convert('L').copy()
             raise ValueError(
                 "Quantization levels must be at least 2 for meaningful quantization.")
 
@@ -121,16 +183,17 @@ class LithophaneImage:
 
         if lo == hi:
             # If the image is completely uniform, return a single color image
-            self._image = Image.new('L', quantized_image.size, color=0)
+            self._image = Image.new('L', quantized_image.size, color=127)
             raise ValueError(
                 "Image is completely uniform. Cannot quantize to multiple levels.")
 
         # Create a lookup table for scaling to full 0-255 range
-        lut = [255 - int((i - lo) / (hi - lo) * 255.)
-               for i in range(256)]
+        def lerp(x): return (x - lo) / (hi - lo) * \
+            (bounds[1] - bounds[0]) + bounds[0]
+        lut = [255 - lerp(i) for i in range(256)]
         self._image = quantized_image.point(lut, mode='L')
 
-    def get_pixel_value(self, query_x_mm: float, query_y_mm: float, binarize: bool = False) -> np.ndarray:
+    def get_pixel_value(self, query_x_mm: float, query_y_mm: float, layer_num: int = -1, binarize: bool = False) -> np.ndarray:
         """
         Maps a physical (X, Y) coordinate within the print bounds to an image pixel.
         Returns a (3,) numpy array representing RGB values. 
@@ -172,18 +235,27 @@ class LithophaneImage:
             if pixel_y < 0:
                 pixel_y = 0
 
-            pixel_value = self._image.getpixel((pixel_x, pixel_y))
+            sample_image = None
+            if layer_num < 0:
+                sample_image = self._image
+            elif 0 <= layer_num < len(self._layer_images):
+                sample_image = self._layer_images[layer_num]
+            else:
+                raise IndexError(
+                    f"Layer index {layer_num} out of bounds. Must be 0 or 1.")
+
+            pixel_value = sample_image.getpixel((pixel_x, pixel_y))
 
             rgb_values = WHITE
-            if self._image.mode == 'RGB':
+            if sample_image.mode == 'RGB':
                 rgb_values = np.array(pixel_value)
                 # print("RBG pixel value:", rgb_values)
-            elif self._image.mode == 'L':
+            elif sample_image.mode == 'L':
                 rgb_values = np.array([pixel_value, pixel_value, pixel_value])
                 # print(f"L pixel value:", pixel_value)
             else:
                 raise ValueError(
-                    f"Unsupported image mode: {self._image.mode}. Only 'RGB' and 'L' modes are supported.")
+                    f"Unsupported image mode: {sample_image.mode}. Only 'RGB' and 'L' modes are supported.")
         except IndexError:
             # Safeguard against unexpected out of bounds
             print(
@@ -200,6 +272,18 @@ class LithophaneImage:
         else:
             # Return the normalized 0-1 value
             return rgb_values_normalized
+
+
+def image_to_layer_images(img: Image.Image, lut: np.ndarray):
+
+    # Convert to 0–255 gray and index into LUT
+    pix = np.asarray(img.convert("L"), dtype=np.uint8)       # (H, W)
+    maps = lut[pix]                                          # (H, W, 2, 3)
+
+    # If you just want two grayscale outputs (e.g. channel 0 of each layer):
+    layer0 = Image.fromarray(maps[:, :, 0, 0], mode="L")
+    layer1 = Image.fromarray(maps[:, :, 1, 0], mode="L")
+    return layer0, layer1
 
 
 # Example usage within the script

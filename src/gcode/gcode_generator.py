@@ -329,7 +329,7 @@ def _refine_segments_along_path(
     # Start of the entire path segment from toolpath generator
     start_point_path_bp: Point2D,
     end_point_path_bp: Point2D,   # End of the entire path segment
-    layer_base_z: float,
+    layer_num: int,
     offset_x: float,
     offset_y: float,
     current_e_absolute: float,  # Current total accumulated E value
@@ -345,6 +345,7 @@ def _refine_segments_along_path(
     current_tool_pos_bp = start_point_path_bp.copy()
     target_end_path_bp = end_point_path_bp.copy()
     offset_bp_vec = Point2D(offset_x, offset_y)
+    layer_base_z = layer_num * params.dz_mm
     _parameter_state = {'prev_v_star': 0., 'prev_h_star': 0.}
 
     path_vec_bp = target_end_path_bp - current_tool_pos_bp
@@ -379,7 +380,8 @@ def _refine_segments_along_path(
 
         if seg_length_mm > epsilon:
             query_point = segment_actual_end_bp - offset_bp_vec
-            v_star, h_star = _calc_VH_stars(params, limg, query_point)
+            v_star, h_star = _calc_VH_stars(
+                params, limg, layer_num, query_point)
 
             # Check if parameters changed significantly from last point
             # If so we want to do a quick jump to the new height and speed
@@ -446,6 +448,7 @@ def _refine_segments_along_path(
 
 def _calc_VH_stars(params: PrintParameters,
                    limg: LithophaneImage,
+                   layer_num: int,
                    query_point_relative: Point2D) -> tuple[float, float]:
     """
     Calculates the V* and H* values based on the pixel values at the query point.
@@ -463,7 +466,7 @@ def _calc_VH_stars(params: PrintParameters,
         print(
             f"Warning: Query point {query_point_relative} clipped to {clipped_query_point} to fit within image bounds.")
     r, g, _ = limg.get_pixel_value(
-        clipped_query_point.x, clipped_query_point.y, binarize=False)
+        clipped_query_point.x, clipped_query_point.y, layer_num=layer_num, binarize=False)
 
     v_star = r * params.v_star_ld + (1 - r) * params.v_star_hd
     h_star = g * params.h_star_ld + (1 - g) * params.h_star_hd
@@ -581,7 +584,7 @@ def generate_gcode(params: PrintParameters,
         end_pt_bp = all_passes_relative[0][1] + offset
 
         v_star, h_star = _calc_VH_stars(
-            params, lithophane_image, all_passes_relative[0][1])
+            params, lithophane_image, layer_num=0, query_point_relative=all_passes_relative[0][1])
         # Calculate Z, F, and dE for the first move
         length = np.linalg.norm(end_pt_bp - current_pos_bp)
         Z, F, dE = _calculate_ZFdE(params, 0., v_star, h_star, length)
@@ -595,20 +598,22 @@ def generate_gcode(params: PrintParameters,
             comment=f"Intro line: V* {v_star:.2f}, H* {h_star:.2f}")
         gcommands.append(gc)
         gcode_strs.append(str(gc))
-        print('new gcode command:', gc)
+        # print('new gcode command:', gc)
 
         print("Refining segments...")
-        for pass_idx_global, (layer, start_pt_rel, end_pt_rel) in enumerate(all_passes_relative):
+        curr_layer_num = -1
+        for pass_idx_global, (layer_num, start_pt_rel, end_pt_rel) in enumerate(all_passes_relative):
+            if curr_layer_num != layer_num:
+                curr_layer_num = layer_num
+                gcode_strs.append(f"; Begin Layer {layer_num+1}")
 
             # Convert relative coordinates to absolute build plate coordinates
             current_pos_bp = start_pt_rel + offset
             end_pt_bp = end_pt_rel + offset
-            # layer number is zero indexed
-            layer_z = layer * params.dz_mm
 
             # Generate segments along the pass
             segment_commands, current_e, current_pos_bp = _refine_segments_along_path(
-                params, lithophane_image, current_pos_bp, end_pt_bp, layer_z, offset.x, offset.y, current_e)
+                params, lithophane_image, current_pos_bp, end_pt_bp, layer_num, offset.x, offset.y, current_e)
             gcode_strs.extend([str(g) for g in segment_commands])
             gcommands.extend(segment_commands)
         gcode_strs.append("; ###SIMULATION END###")

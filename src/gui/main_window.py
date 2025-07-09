@@ -106,7 +106,7 @@ class DualViewWindow(QMainWindow):
         self.lithophane_image.set_physical_print_dimensions(
             self.settings_dialog.physical_width.value())
         qlvls = self.settings_dialog.quantization_levels.value()
-        self.lithophane_image.quantize_img(qlvls)
+        self.lithophane_image.update_image(quantization_levels=qlvls)
         self.image_view.set_lithophane_image(self.lithophane_image)
 
     def open_process_settings(self):
