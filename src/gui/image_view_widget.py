@@ -75,7 +75,7 @@ class ImageViewWidget(QLabel):
             self.setText("")  # Clear any previous text
             self._scale_and_display_pixmap()
 
-    def set_lithophane_image(self, lithophane_image):
+    def set_lithophane_image(self, lithophane_image, variant="Raw Image"):
         """
         Sets the lithophane image and displays it.
         This method is used when a LithophaneImage object is available.
@@ -85,9 +85,10 @@ class ImageViewWidget(QLabel):
             return
 
         self.current_image_path = lithophane_image.filepath
-        # self.original_pixmap = QPixmap.fromImage(
-        # lithophane_image._image.convert('RGB'))
-        pil_img = lithophane_image._image.convert('RGB')
+        pil_img = self._select_variant(lithophane_image, variant)
+        if pil_img is None:
+            self.clear_image()
+            return
         qimg = ImageQt(pil_img)
         self.original_pixmap = QPixmap.fromImage(qimg)
 
@@ -100,6 +101,23 @@ class ImageViewWidget(QLabel):
             self._set_success_appearance()
             self.setText("")
             self._scale_and_display_pixmap()
+
+    def _select_variant(self, lithophane_image, variant):
+        pil_img = None
+        if "raw" in variant.lower():
+            pil_img = lithophane_image._raw_image.convert('RGB')
+        elif "quant" in variant.lower():
+            pil_img = lithophane_image._image.convert('RGB')
+        elif "layer 1" in variant.lower():
+            pil_img = lithophane_image.get_layer_image(0).convert('RGB')
+        elif "layer 2" in variant.lower():
+            pil_img = lithophane_image.get_layer_image(1).convert('RGB')
+        else:
+            QMessageBox.warning(
+                self, "Invalid Variant", f"Unknown variant: {variant}")
+            return
+
+        return pil_img
 
     def clear_image(self):
         """Clears the displayed image and resets to the prompt state."""

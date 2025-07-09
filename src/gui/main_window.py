@@ -6,8 +6,9 @@ from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QDir, QSettings, Qt, Slot
-from PySide6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout,
-                               QMainWindow, QMessageBox, QSizePolicy, QWidget)
+from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog,
+                               QHBoxLayout, QMainWindow, QMessageBox,
+                               QSizePolicy, QToolBar, QWidget)
 
 from gcode.gcode_generator import generate_gcode
 from gcode.image_utils import LithophaneImage
@@ -52,6 +53,19 @@ class DualViewWindow(QMainWindow):
 
         central_widget.setLayout(main_layout)
 
+        toolbar = QToolBar("View")
+        self.addToolBar(toolbar)
+
+        self.variant_combo = QComboBox()
+        self.variant_combo.addItems([
+            "Quantized Image",
+            "Layer 1",
+            "Layer 2",
+            "Raw Image",
+        ])
+        self.variant_combo.currentIndexChanged.connect(self.update_image)
+        toolbar.addWidget(self.variant_combo)
+
     def open_file(self):
         """Open a project file."""
         # Implement project file opening logic
@@ -92,22 +106,19 @@ class DualViewWindow(QMainWindow):
                     self.current_image_path)
 
     def update_image(self) -> None:
-        if self.lithophane_image is None:
-            # No image loaded means we fail silently
-            QMessageBox.warning(
-                self, "No Image Loaded", "Please load an image first.")
-            return
-        params = self.settings_dialog.get_print_parameters()
-        if not params:
-            QMessageBox.warning(
-                self, "Invalid Settings", "Please configure the print settings first.")
-            return
+        if self.lithophane_image is not None:
+            params = self.settings_dialog.get_print_parameters()
+            if not params:
+                QMessageBox.warning(
+                    self, "Invalid Settings", "Please configure the print settings first.")
+                return
 
-        self.lithophane_image.set_physical_print_dimensions(
-            self.settings_dialog.physical_width.value())
-        qlvls = self.settings_dialog.quantization_levels.value()
-        self.lithophane_image.update_image(quantization_levels=qlvls)
-        self.image_view.set_lithophane_image(self.lithophane_image)
+            self.lithophane_image.set_physical_print_dimensions(
+                self.settings_dialog.physical_width.value())
+            qlvls = self.settings_dialog.quantization_levels.value()
+            self.lithophane_image.update_image(quantization_levels=qlvls)
+            self.image_view.set_lithophane_image(
+                self.lithophane_image, self.variant_combo.currentText())
 
     def open_process_settings(self):
         """Open the process settings dialog."""

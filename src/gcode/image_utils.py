@@ -111,8 +111,13 @@ class LithophaneImage:
             quantization_levels: The number of quantization levels (default is 3).
             bounds: The bounds for quantization (default is (0, 255)).
         """
-        if quantization_levels > 2:
+        if self._raw_image is None:
+            raise ValueError("Image not loaded. Cannot update image.")
+
+        if quantization_levels > 1:
             self._quantize_image(quantization_levels, bounds)
+        else:
+            self._image = self._raw_image.convert('L').copy()
 
         self._generate_layer_images()
 
