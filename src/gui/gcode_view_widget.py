@@ -117,7 +117,22 @@ class GCodeViewWidget(QWidget):
 
         # this does nothing if the actor does not exist
         self.plotter.remove_actor(self.line_actor_name)
-        self.plotter.add_lines(points,
-                               name=self.line_actor_name,
-                               connected=True,
-                               **kwargs)
+        # self.plotter.add_lines(points,
+        #                        name=self.line_actor_name,
+        #                        connected=True,
+        #                        **kwargs)
+
+        lines = pv.lines_from_points(points, close=False)
+        # Average Z between consecutive points
+        z_avg = 0.5 * (points[:-1, 2] + points[1:, 2])
+        lines.cell_data['z_height'] = z_avg
+
+        self.plotter.add_mesh(
+            lines,
+            scalars='z_height',
+            name=self.line_actor_name,
+            cmap='viridis',
+            line_width=kwargs.get('line_width', 1.0),
+            show_scalar_bar=False,
+            lighting=False,
+        )

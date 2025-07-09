@@ -49,12 +49,27 @@ class LithophaneImage:
             img = Image.open(self.filepath)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
-            self._raw_image = img
+            self._raw_image = img.copy()
             self._image = img.copy()  # Keep a copy for processing
 
         except Exception as e:
             raise IOError(
                 f"Could not open or process image file {self.filepath}: {e}")
+
+        self.set_physical_print_dimensions(self.physical_print_width_mm)
+
+    def set_physical_print_dimensions(self, physical_print_width_mm: float) -> None:
+        """
+        Sets the physical print dimensions for the lithophane image.
+        This will also update the scaled image dimensions accordingly.
+
+        Args:
+            physical_print_width_mm: The new physical print width in mm.
+        """
+        self.physical_print_width_mm = physical_print_width_mm
+
+        if self._image is None:
+            raise ValueError("Image not loaded. Cannot set dimensions.")
 
         img_width_px, img_height_px = self._image.size
 
@@ -87,7 +102,8 @@ class LithophaneImage:
             raise ValueError("Image not loaded. Cannot quantize.")
         if quantization_levels < 2:
             self._image = self._raw_image.copy()
-            return
+            raise ValueError(
+                "Quantization levels must be at least 2 for meaningful quantization.")
 
         filter_size = max(3, self._raw_image.width // 100)
         if filter_size % 2 == 0:
@@ -106,13 +122,15 @@ class LithophaneImage:
         if lo == hi:
             # If the image is completely uniform, return a single color image
             self._image = Image.new('L', quantized_image.size, color=0)
+            raise ValueError(
+                "Image is completely uniform. Cannot quantize to multiple levels.")
 
         # Create a lookup table for scaling to full 0-255 range
         lut = [255 - int((i - lo) / (hi - lo) * 255.)
                for i in range(256)]
         self._image = quantized_image.point(lut, mode='L')
 
-    def get_pixel_value(self, query_x_mm: float, query_y_mm: float, binarize: bool = True) -> np.ndarray:
+    def get_pixel_value(self, query_x_mm: float, query_y_mm: float, binarize: bool = False) -> np.ndarray:
         """
         Maps a physical (X, Y) coordinate within the print bounds to an image pixel.
         Returns a (3,) numpy array representing RGB values. 
@@ -154,9 +172,18 @@ class LithophaneImage:
             if pixel_y < 0:
                 pixel_y = 0
 
+            pixel_value = self._image.getpixel((pixel_x, pixel_y))
+
             rgb_values = WHITE
             if self._image.mode == 'RGB':
-                rgb_values = np.array(self._image.getpixel((pixel_x, pixel_y)))
+                rgb_values = np.array(pixel_value)
+                # print("RBG pixel value:", rgb_values)
+            elif self._image.mode == 'L':
+                rgb_values = np.array([pixel_value, pixel_value, pixel_value])
+                # print(f"L pixel value:", pixel_value)
+            else:
+                raise ValueError(
+                    f"Unsupported image mode: {self._image.mode}. Only 'RGB' and 'L' modes are supported.")
         except IndexError:
             # Safeguard against unexpected out of bounds
             print(

@@ -43,6 +43,7 @@ class DualViewWindow(QMainWindow):
         # --- Left View: Image Display ---
         self.image_view = ImageViewWidget()  # Use the custom widget
         main_layout.addWidget(self.image_view, 1)
+        self.lithophane_image = None
 
         # --- Right View: GCode View ---
         params = self.settings_dialog.get_print_parameters()
@@ -79,18 +80,22 @@ class DualViewWindow(QMainWindow):
             self.settings.setValue(
                 "last_image_directory", os.path.dirname(image_path))
             self.current_image_path = image_path
+            self.lithophane_image = LithophaneImage(
+                filepath=image_path,
+                physical_print_width_mm=self.settings_dialog.get_print_parameters().physical_print_width_mm
+            )
 
-            self.render_image()
+            self.update_image()
 
             if hasattr(self, 'settings_dialog') and self.settings_dialog:
                 self.settings_dialog.image_path.setText(
                     self.current_image_path)
 
-    def render_image(self) -> None:
-        if self.current_image_path is None:
+    def update_image(self) -> None:
+        if self.lithophane_image is None:
             # No image loaded means we fail silently
-            # QMessageBox.warning(
-            # self, "No Image Loaded", "Please load an image first.")
+            QMessageBox.warning(
+                self, "No Image Loaded", "Please load an image first.")
             return
         params = self.settings_dialog.get_print_parameters()
         if not params:
@@ -98,13 +103,11 @@ class DualViewWindow(QMainWindow):
                 self, "Invalid Settings", "Please configure the print settings first.")
             return
 
-        lithophane_image = LithophaneImage(
-            filepath=self.current_image_path,
-            physical_print_width_mm=params.physical_print_width_mm
-        )
+        self.lithophane_image.set_physical_print_dimensions(
+            self.settings_dialog.physical_width.value())
         qlvls = self.settings_dialog.quantization_levels.value()
-        lithophane_image.quantize_img(qlvls)
-        self.image_view.set_lithophane_image(lithophane_image)
+        self.lithophane_image.quantize_img(qlvls)
+        self.image_view.set_lithophane_image(self.lithophane_image)
 
     def open_process_settings(self):
         """Open the process settings dialog."""
@@ -120,7 +123,7 @@ class DualViewWindow(QMainWindow):
             # User clicked OK - settings have been saved internally
             QMessageBox.information(
                 self, "Settings Saved", "Process settings have been updated.")
-            self.render_image()  # Reload image with new settings
+            self.update_image()  # Reload image with new settings
         else:
             # User clicked Cancel - do not update settings
             QMessageBox.information(
@@ -161,14 +164,15 @@ class DualViewWindow(QMainWindow):
             # Get the parameters from the settings dialog
             params = self.settings_dialog.get_print_parameters()
 
-            # Create LithophaneImage object
-            lithophane_image = LithophaneImage(
-                filepath=params.image_filepath,
-                physical_print_width_mm=params.physical_print_width_mm
-            )
+            self.update_image()  # Ensure the image is rendered before generating G-code
 
             # Generate G-code and render it
-            gcode_lines, gcommands = generate_gcode(params, lithophane_image)
+            if self.lithophane_image is None:
+                QMessageBox.warning(
+                    self, "No Image Loaded", "Please load an image first.")
+                return
+            gcode_lines, gcommands = generate_gcode(
+                params, self.lithophane_image)
             points = []
             for command in gcommands:
                 points.append(command.pos)
