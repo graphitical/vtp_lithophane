@@ -82,6 +82,14 @@ class ProcessSettingsDialog(QDialog):
         self.quantization_levels.setValue(5)
         process_layout.addRow("Quantization Levels:", self.quantization_levels)
 
+        self.vhstar_jump_pct = QDoubleSpinBox()
+        self.vhstar_jump_pct.setRange(0., 100.)
+        self.vhstar_jump_pct.setValue(0.)
+        self.vhstar_jump_pct.setSuffix(" %")
+        self.vhstar_jump_pct.setToolTip(
+            "A level check is when changing V*/H* parameters. This sets the threshold for the jump to perform a G0 non-extruding move instead of a G1 extruding move.")
+        process_layout.addRow("V*/H* Jump Percentage:", self.vhstar_jump_pct)
+
         # VTP Parameters Tab
         vtp_tab = QWidget()
         vtp_layout = QFormLayout(vtp_tab)
@@ -346,6 +354,8 @@ class ProcessSettingsDialog(QDialog):
         self.settings.setValue("layers", self.layers.value())
         self.settings.setValue("quantization_levels",
                                self.quantization_levels.value())
+        self.settings.setValue("vhstar_jump_pct",
+                               self.vhstar_jump_pct.value())
         # VTP parameters
         self.settings.setValue("v_star_hd", self.v_star_hd.value())
         self.settings.setValue("v_star_ld", self.v_star_ld.value())
@@ -354,6 +364,9 @@ class ProcessSettingsDialog(QDialog):
         self.settings.setValue("alpha", self.alpha.value())
         self.settings.setValue("e_dot", self.e_dot.value())
         self.settings.setValue("line_spacing", self.line_spacing.value())
+        self.settings.setValue("line_spacing_list",
+                               self.line_spacing_list.text())
+        # Printer parameters
         self.settings.setValue("sampling_resolution",
                                self.sampling_resolution.value())
         self.settings.setValue("layer_height", self.layer_height.value())
@@ -385,6 +398,9 @@ class ProcessSettingsDialog(QDialog):
         if self.settings.contains("quantization_levels"):
             self.quantization_levels.setValue(
                 int(self.settings.value("quantization_levels")))
+        if self.settings.contains("vhstar_jump_pct"):
+            self.vhstar_jump_pct.setValue(
+                float(self.settings.value("vhstar_jump_pct")))
         # VTP parameters
         if self.settings.contains("v_star_hd"):
             self.v_star_hd.setValue(float(self.settings.value("v_star_hd")))
@@ -401,6 +417,9 @@ class ProcessSettingsDialog(QDialog):
         if self.settings.contains("line_spacing"):
             self.line_spacing.setValue(
                 float(self.settings.value("line_spacing")))
+        if self.settings.contains("line_spacing_list"):
+            self.line_spacing_list.setText(
+                str(self.settings.value("line_spacing_list", "1.5,2.0,2.5")))
         if self.settings.contains("sampling_resolution"):
             self.sampling_resolution.setValue(
                 float(self.settings.value("sampling_resolution")))
@@ -501,4 +520,5 @@ class ProcessSettingsDialog(QDialog):
             extrusion_multiplier=self.extrusion_multiplier.value()*100,
             dL_hd=parse_line_spacing_list(self.line_spacing_list.text())[0],
             dL_ld=parse_line_spacing_list(self.line_spacing_list.text())[-1],
+            vhstar_jump_pct=self.vhstar_jump_pct.value()
         )

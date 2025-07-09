@@ -58,7 +58,7 @@ class PrintParameters:
         default=(250.0, 210.0))  # Default to common bed size
     priming_line_length: float = field(default=120.0)  # Default value
 
-    param_change_threshold: float = field(default=0.05)
+    vhstar_jump_pct: float = field(default=0.05)  # as a percent
 
     def __post_init__(self):
         """Perform validation after initialization."""

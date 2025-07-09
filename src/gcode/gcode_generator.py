@@ -323,9 +323,6 @@ def _generate_entire_toolpath(params: PrintParameters, physical_print_width: flo
     return paths_list
 
 
-_parameter_state = {'prev_v_star': 0., 'prev_h_star': 0.}
-
-
 def _refine_segments_along_path(
     params: PrintParameters,
     lithophane_image: LithophaneImage,
@@ -348,6 +345,7 @@ def _refine_segments_along_path(
     current_tool_pos_bp = start_point_path_bp.copy()
     target_end_path_bp = end_point_path_bp.copy()
     offset_bp_vec = Point2D(offset_x, offset_y)
+    _parameter_state = {'prev_v_star': 0., 'prev_h_star': 0.}
 
     path_vec_bp = target_end_path_bp - current_tool_pos_bp
     path_length_mm = np.linalg.norm(path_vec_bp)
@@ -386,13 +384,13 @@ def _refine_segments_along_path(
             # Check if parameters changed significantly from last point
             # If so we want to do a quick jump to the new height and speed
             param_changed = False
-            prev_v_star = _parameter_state['prev_v_star']
-            prev_h_star = _parameter_state['prev_h_star']
-            p_change = params.param_change_threshold
+            p_change = params.vhstar_jump_pct / 100.0
             if p_change > 0:
+                prev_v_star = _parameter_state['prev_v_star']
+                prev_h_star = _parameter_state['prev_h_star']
                 if prev_v_star > 0 and prev_h_star > 0:
-                    v_change = abs(v_star - prev_v_star)
-                    h_change = abs(h_star - prev_h_star)
+                    v_change = abs(v_star - prev_v_star) / prev_v_star
+                    h_change = abs(h_star - prev_h_star) / prev_h_star
                     if v_change > p_change or h_change > p_change:
                         param_changed = True
                         # Insert G0 travel move with high speed
@@ -413,9 +411,9 @@ def _refine_segments_along_path(
                         )
                         path_gcommands.append(travel_command)
 
-            # Update state
-            _parameter_state['prev_v_star'] = v_star
-            _parameter_state['prev_h_star'] = h_star
+                # Update state
+                _parameter_state['prev_v_star'] = v_star
+                _parameter_state['prev_h_star'] = h_star
 
             # Only perform extrusion if not a parameter change travel move
             if not param_changed:
@@ -563,6 +561,8 @@ def generate_gcode(params: PrintParameters,
     current_e = 0.0
 
     # Calculate offset to center the print volume on the build plate
+    # TODO: I don't like that lithophane_image has its own print width/height properties
+    # I think it should move into the print parameters struct
     physical_print_width = lithophane_image.physical_print_width_mm
     physical_print_height = lithophane_image.physical_print_height_mm
     offset = _calculate_build_plate_offset(
