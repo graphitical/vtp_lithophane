@@ -278,32 +278,34 @@ def image_to_layer_images(img: Image.Image, lut: dict[int, dict[int, np.ndarray]
 
     # Convert to 0–255 gray and index into LUT
     pix = np.asarray(img.convert("L"), dtype=np.uint8)       # (H, W)
-    # maps = lut[pix]                                        # (H, W, 2, 3)
 
     # Remap 0-255 to the number of distinct values
-    distinct_values = np.unique(pix)
+    distinct_values = sorted(np.unique(pix), reverse=True)
     new_pix = np.zeros_like(pix, dtype=np.uint8)
     for i, val in enumerate(distinct_values):
         new_pix[pix == val] = i
-    
+
     # Get the maps for each distinct value
     # We need to apply the LUT lookup element-wise since new_pix is a 2D array
     # and lut[len(distinct_values)] is a dictionary
     num_levels = len(distinct_values)
+    if num_levels not in lut:
+        raise ValueError(
+            f"Number of distinct values {num_levels} not found in LUT. Available levels: {list(lut.keys())}")
     level_lut = lut[num_levels]
-    
+
     # Initialize maps array with shape (H, W, 2, 3)
     h, w = new_pix.shape
-    maps = np.zeros((h, w, 2, 3), dtype=np.float32)
-    
+    maps = np.zeros((h, w, 2, 3), dtype=np.uint8)
+
     # Apply LUT lookup for each pixel value
     for pixel_val in range(num_levels):
         mask = new_pix == pixel_val
         maps[mask] = level_lut[pixel_val]
 
     # If you just want two grayscale outputs (e.g. channel 0 of each layer):
-    layer0 = Image.fromarray(maps[:, :, 0, 0], mode="L")
-    layer1 = Image.fromarray(maps[:, :, 1, 0], mode="L")
+    layer0 = Image.fromarray(maps[:, :, 0, :], mode="RGB")
+    layer1 = Image.fromarray(maps[:, :, 1, :], mode="RGB")
     return layer0, layer1
 
 
