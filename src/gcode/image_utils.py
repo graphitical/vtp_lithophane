@@ -153,12 +153,7 @@ class LithophaneImage:
         if self._image is None:
             raise ValueError("Image not loaded. Cannot generate layer images.")
 
-        pix = np.asarray(self._image.convert("L"), dtype=np.uint8)  # (H, W)
-        maps = LUT[pix]  # (H, W, 2, 3)
-
-        layer0 = Image.fromarray(maps[:, :, 0, :], mode="RGB")  # First layer
-        layer1 = Image.fromarray(maps[:, :, 1, :], mode="RGB")  # Second layer
-        self._layer_images = [layer0, layer1]
+        self._layer_images = image_to_layer_images(self._image, LUT)
 
     def _quantize_image(self, quantization_levels: int = 2, bounds: tuple = (0, 255)) -> None:
         """
@@ -279,11 +274,32 @@ class LithophaneImage:
             return rgb_values_normalized
 
 
-def image_to_layer_images(img: Image.Image, lut: np.ndarray):
+def image_to_layer_images(img: Image.Image, lut: dict[int, dict[int, np.ndarray]]):
 
     # Convert to 0–255 gray and index into LUT
     pix = np.asarray(img.convert("L"), dtype=np.uint8)       # (H, W)
-    maps = lut[pix]                                          # (H, W, 2, 3)
+    # maps = lut[pix]                                        # (H, W, 2, 3)
+
+    # Remap 0-255 to the number of distinct values
+    distinct_values = np.unique(pix)
+    new_pix = np.zeros_like(pix, dtype=np.uint8)
+    for i, val in enumerate(distinct_values):
+        new_pix[pix == val] = i
+    
+    # Get the maps for each distinct value
+    # We need to apply the LUT lookup element-wise since new_pix is a 2D array
+    # and lut[len(distinct_values)] is a dictionary
+    num_levels = len(distinct_values)
+    level_lut = lut[num_levels]
+    
+    # Initialize maps array with shape (H, W, 2, 3)
+    h, w = new_pix.shape
+    maps = np.zeros((h, w, 2, 3), dtype=np.float32)
+    
+    # Apply LUT lookup for each pixel value
+    for pixel_val in range(num_levels):
+        mask = new_pix == pixel_val
+        maps[mask] = level_lut[pixel_val]
 
     # If you just want two grayscale outputs (e.g. channel 0 of each layer):
     layer0 = Image.fromarray(maps[:, :, 0, 0], mode="L")
