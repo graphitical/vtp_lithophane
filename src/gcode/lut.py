@@ -1,7 +1,8 @@
 import numpy as np
 
 
-def _build_image_lut_interpolated() -> dict[int, dict[int, np.ndarray]]:
+# TODO: Change the name because it isn't actually interpolated.
+def _build_image_lut() -> dict[int, dict[int, np.ndarray]]:
     """
     Builds a lookup table (LUT) for interpolating lithophane layer values into two layers.
     The LUT is constructed based on known values for specific quantization levels from rendered images.
@@ -14,7 +15,7 @@ def _build_image_lut_interpolated() -> dict[int, dict[int, np.ndarray]]:
         3: {
             0: np.array([[255, 255, 0], [204, 153, 0]], dtype=np.uint8),
             1: np.array([[101, 102, 0], [204, 204, 0]], dtype=np.uint8),
-            2: np.array([[0, 0, 0], [50, 153, 0]], dtype=np.float32),
+            2: np.array([[0, 0, 0], [50, 153, 0]], dtype=np.uint8),
         },
         4: {
             0: np.array([[255, 255, 0], [204, 153, 0]], dtype=np.uint8),
@@ -32,4 +33,4 @@ def _build_image_lut_interpolated() -> dict[int, dict[int, np.ndarray]]:
     }
 
 
-LUT = _build_image_lut_interpolated()
+LUT = _build_image_lut()
