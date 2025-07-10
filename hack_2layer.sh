@@ -1,0 +1,1 @@
+python lithophize.py --layer-images images/vstar_hstar_grid_layer1.png images/vstar_hstar_grid_layer2.png -w 100 -o test_output.gcode --layers 2 --line-spacing-list 1.5,4.5 --start-gcode gcode/templates/prusa_mk4_start.gcode --end-gcode gcode/templates/prusa_mk4_end.gcode
