@@ -168,15 +168,22 @@ class LithophaneImage:
             raise ValueError(
                 "Quantization levels must be at least 2 for meaningful quantization.")
 
-        filter_size = max(3, self._raw_image.width // 100)
-        if filter_size % 2 == 0:
-            filter_size += 1
+        med_filt_size = max(4, self._raw_image.width // 100)
+        if med_filt_size % 2 == 0:
+            med_filt_size += 1
+        blur_filt_size = np.ceil(med_filt_size / 4)
+        if blur_filt_size % 2 == 0:
+            blur_filt_size += 1
+        # print(f"Applying median filter with size: {med_filt_size}")
+        # print(f"Applying Gaussian blur with radius: {blur_filt_size}")
 
         gray_image = self._raw_image.convert('L')
         denoised_image = gray_image.filter(
-            ImageFilter.MedianFilter(size=filter_size))
-        smoothed_image = denoised_image.filter(ImageFilter.SMOOTH_MORE)
-        quantized_image = smoothed_image.quantize(quantization_levels)
+            ImageFilter.MedianFilter(size=med_filt_size))
+        smoothed_image = denoised_image.filter(
+            ImageFilter.GaussianBlur(radius=blur_filt_size))
+        quantized_image = smoothed_image.quantize(
+            colors=quantization_levels, method=Image.Quantize.MEDIANCUT)
 
         lo, hi = quantized_image.getextrema()
         lo = lo[0] if isinstance(lo, tuple) else lo
