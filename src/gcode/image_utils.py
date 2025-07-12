@@ -297,10 +297,33 @@ def image_to_layer_images(img: Image.Image, lut: dict[int, dict[int, np.ndarray]
     # We need to apply the LUT lookup element-wise since new_pix is a 2D array
     # and lut[len(distinct_values)] is a dictionary
     num_levels = len(distinct_values)
-    if num_levels not in lut:
-        raise ValueError(
-            f"Number of distinct values {num_levels} not found in LUT. Available levels: {list(lut.keys())}")
-    level_lut = lut[num_levels]
+    if num_levels in lut:
+        level_lut = lut[num_levels]
+    else:
+        # Fallback to the highest available level, interpolate it, and pray that it makes reasonable prints
+        tmp_lut = lut[max(lut.keys())]
+        keys = np.array(sorted(tmp_lut.keys()), dtype=np.float32)
+        vals = np.stack([tmp_lut[k] for k in keys], axis=0, dtype=np.float32)
+        # Normalize keys to 0-255 range now that we've referenced created vals
+        keys = (keys / np.max(keys) * 255.0).astype(dtype=np.uint8)
+        print(np.max(keys), np.min(keys))
+        xs = np.arange(256, dtype=np.float32)
+        # print(xs.shape)
+        level_lut = np.empty(
+            (256, vals.shape[1], vals.shape[2]), dtype=np.uint8)
+        # print(level_lut.shape)
+        for layer in range(vals.shape[1]):
+            for ch in range(vals.shape[2]):
+                # Interpolate the values for each channel
+                level_lut[:, layer, ch] = np.interp(
+                    xs, keys, vals[:, layer, ch])
+        # print(level_lut.shape)
+        # print(level_lut)
+        QMessageBox.warning(
+            None,
+            "Warning",
+            f"Quantization level {num_levels} not found in LUT. Using fallback interpolation with {len(tmp_lut)} levels.",
+        )
 
     # Initialize maps array with shape (H, W, 2, 3)
     h, w = new_pix.shape
