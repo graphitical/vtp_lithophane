@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image, ImageFilter
+from PySide6.QtWidgets import QMessageBox
 
 from gcode.lut import LUT
 
@@ -40,6 +41,7 @@ class LithophaneImage:
         self._raw_image = None  # Store the Pillow image internally
         self._image = None  # Processed image
         self._layer_images = []  # Store per layer images for V*/H* interpolation
+        self.last_num_qlevels = 0  # Last quantization levels used for image processing
 
         self._load_and_process_image()
 
@@ -114,10 +116,9 @@ class LithophaneImage:
         if self._raw_image is None:
             raise ValueError("Image not loaded. Cannot update image.")
 
-        if quantization_levels > 1:
+        if quantization_levels > 1 and self.last_num_qlevels != quantization_levels:
             self._quantize_image(quantization_levels, bounds)
-        else:
-            self._image = self._raw_image.convert('L').copy()
+            self.last_num_qlevels = quantization_levels
 
         self._generate_layer_images()
 
