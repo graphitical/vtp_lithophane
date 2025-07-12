@@ -119,6 +119,8 @@ class LithophaneImage:
         if quantization_levels > 1 and self.last_num_qlevels != quantization_levels:
             self._quantize_image(quantization_levels, bounds)
             self.last_num_qlevels = quantization_levels
+        else:
+            self._image = self._raw_image.convert('L').copy()
 
         self._generate_layer_images()
 
