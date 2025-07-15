@@ -20,7 +20,7 @@ class ProcessSettingsDialog(QDialog):
     def __init__(self, parent=None, image_path=None):
         super().__init__(parent)
         self.setWindowTitle("Process Settings")
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(650)
 
         # Settings
         self.settings = QSettings("VTP", "Lithophane")
@@ -28,7 +28,6 @@ class ProcessSettingsDialog(QDialog):
         self.setup_ui()
         self.load_settings()
 
-        print(image_path)
         if image_path:
             self.image_path.setText(image_path)
         else:
@@ -75,13 +74,6 @@ class ProcessSettingsDialog(QDialog):
         self.layers.setValue(4)
         process_layout.addRow("Number of Layers:", self.layers)
 
-        self.quantization_levels = QSpinBox()
-        self.quantization_levels.setToolTip(
-            "Number of quanization levels. Set to 1 for no quantization.")
-        self.quantization_levels.setRange(1, 10)
-        self.quantization_levels.setValue(5)
-        process_layout.addRow("Quantization Levels:", self.quantization_levels)
-
         self.vhstar_jump_pct = QDoubleSpinBox()
         self.vhstar_jump_pct.setRange(0., 100.)
         self.vhstar_jump_pct.setValue(0.)
@@ -90,10 +82,45 @@ class ProcessSettingsDialog(QDialog):
             "A level check is when changing V*/H* parameters. This sets the threshold for the jump to perform a G0 non-extruding move instead of a G1 extruding move.")
         process_layout.addRow("V*/H* Jump Percentage:", self.vhstar_jump_pct)
 
+        # Image processing tab
+        image_process_tab = QWidget()
+        image_process_layout = QFormLayout(image_process_tab)
+        tab_widget.addTab(image_process_tab, "Image Processing")
+
         # VTP Parameters Tab
         vtp_tab = QWidget()
         vtp_layout = QFormLayout(vtp_tab)
         tab_widget.addTab(vtp_tab, "VTP Parameters")
+
+        self.quantization_levels = QSpinBox()
+        self.quantization_levels.setToolTip(
+            "Number of quanization levels. Set to 1 for no quantization.")
+        self.quantization_levels.setRange(1, 10)
+        self.quantization_levels.setValue(5)
+        image_process_layout.addRow(
+            "Quantization Levels:", self.quantization_levels)
+
+        self.median_blur_radius = QSpinBox()
+        self.median_blur_radius.setRange(1, 100)
+        self.median_blur_radius.setSingleStep(2)
+        self.median_blur_radius.setValue(1)
+        self.median_blur_radius.setSuffix(" px")
+        image_process_layout.addRow(
+            "Median Blur Radius:", self.median_blur_radius)
+        # Filter radius must be odd for pillow filter to work
+        self.median_blur_radius.valueChanged.connect(
+            lambda v: self.median_blur_radius.setValue(v + 1) if v % 2 == 0 else None)
+
+        self.gauss_blur_radius = QSpinBox()
+        self.gauss_blur_radius.setRange(0, 100)
+        self.gauss_blur_radius.setSingleStep(2)
+        self.gauss_blur_radius.setValue(1)
+        self.gauss_blur_radius.setSuffix(" px")
+        image_process_layout.addRow(
+            "Gaussian Blur Radius:", self.gauss_blur_radius)
+        # Filter radius must be odd for pillow filter to work
+        self.gauss_blur_radius.valueChanged.connect(
+            lambda v: self.gauss_blur_radius.setValue(v + 1) if v % 2 == 0 else None)
 
         # VTP Specific Parameters
         self.v_star_hd = QDoubleSpinBox()
@@ -352,10 +379,14 @@ class ProcessSettingsDialog(QDialog):
         self.settings.setValue("image_path", self.image_path.text())
         self.settings.setValue("physical_width", self.physical_width.value())
         self.settings.setValue("layers", self.layers.value())
-        self.settings.setValue("quantization_levels",
-                               self.quantization_levels.value())
         self.settings.setValue("vhstar_jump_pct",
                                self.vhstar_jump_pct.value())
+        # Image processing parameters
+        self.settings.setValue("quantization_levels",
+                               self.quantization_levels.value())
+        self.settings.setValue("median_blur_radius",
+                               self.median_blur_radius.value())
+        self.settings.setValue("blur_radius", self.gauss_blur_radius.value())
         # VTP parameters
         self.settings.setValue("v_star_hd", self.v_star_hd.value())
         self.settings.setValue("v_star_ld", self.v_star_ld.value())
@@ -398,6 +429,12 @@ class ProcessSettingsDialog(QDialog):
         if self.settings.contains("quantization_levels"):
             self.quantization_levels.setValue(
                 int(self.settings.value("quantization_levels")))
+        if self.settings.contains("median_blur_radius"):
+            self.median_blur_radius.setValue(
+                float(self.settings.value("median_blur_radius")))
+        if self.settings.contains("blur_radius"):
+            self.gauss_blur_radius.setValue(
+                float(self.settings.value("blur_radius")))
         if self.settings.contains("vhstar_jump_pct"):
             self.vhstar_jump_pct.setValue(
                 float(self.settings.value("vhstar_jump_pct")))

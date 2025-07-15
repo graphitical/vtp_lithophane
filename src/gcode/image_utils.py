@@ -4,6 +4,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.pylab import f
 from PIL import Image, ImageFilter
 from PySide6.QtWidgets import QMessageBox
 
@@ -41,7 +42,7 @@ class LithophaneImage:
         self._raw_image = None  # Store the Pillow image internally
         self._image = None  # Processed image
         self._layer_images = []  # Store per layer images for V*/H* interpolation
-        self.last_num_qlevels = 0  # Last quantization levels used for image processing
+        self.last_num_qlevels = -1  # Last quantization levels used for image processing
 
         self._load_and_process_image()
 
@@ -102,7 +103,7 @@ class LithophaneImage:
         self.scale_x_mm_to_px = img_width_px / self.scaled_img_physical_width_mm
         self.scale_y_mm_to_px = img_height_px / self.scaled_img_physical_height_mm
 
-    def update_image(self, quantization_levels: int = 0, bounds: tuple = (0, 255)) -> None:
+    def update_image(self, median_blur_radius: int = 0, gauss_blur_radius: int = 0, quantization_levels: int = 0, bounds: tuple = (0, 255)) -> None:
         """
         Updates the image by quantizing it to the specified number of levels.
         This is useful for creating lithophanes with varying light transmission.
@@ -116,12 +117,16 @@ class LithophaneImage:
         if self._raw_image is None:
             raise ValueError("Image not loaded. Cannot update image.")
 
-        if quantization_levels > 1 and self.last_num_qlevels != quantization_levels:
-            self._quantize_image(quantization_levels, bounds)
-            self.last_num_qlevels = quantization_levels
-        else:
-            self._image = self._raw_image.convert('L').copy()
+        if self.last_num_qlevels != quantization_levels:
+            if quantization_levels < 2:
+                print(
+                    f"Warning: Quantization level is {quantization_levels}. This disables quantization.")
+                self._image = self._raw_image.convert('L').copy()
+            else:
+                self._quantize_image(median_blur_radius=median_blur_radius, gauss_blur_radius=gauss_blur_radius,
+                                     quantization_levels=quantization_levels, bounds=bounds)
 
+        self.last_num_qlevels = quantization_levels
         self._generate_layer_images()
 
     def get_layer_image(self, layer_index: int) -> Image.Image:
@@ -158,11 +163,15 @@ class LithophaneImage:
 
         self._layer_images = image_to_layer_images(self._image, LUT)
 
-    def _quantize_image(self, quantization_levels: int = 2, bounds: tuple = (0, 255)) -> None:
+    def _quantize_image(self, median_blur_radius: int = 0, gauss_blur_radius: int = 0, quantization_levels: int = 2, bounds: tuple = (0, 255)) -> None:
         """
         Grayscales and quantizes the image to the specified number of levels.
         This method applies a median filter to reduce noise, smooths the image, quantizes it to the specified number of levels, and then scales the pixel values to the specified bounds if we want to clip it.
         """
+        print(f"Quantizing image with {quantization_levels} levels.")
+        print(f"Bounds for quantization: {bounds}")
+        print(f"Applying median filter with radius: {median_blur_radius}")
+        print(f"Applying Gaussian blur with radius: {gauss_blur_radius}")
         if self._raw_image is None:
             raise ValueError("Image not loaded. Cannot quantize.")
         if quantization_levels < 2:
@@ -170,21 +179,17 @@ class LithophaneImage:
             raise ValueError(
                 "Quantization levels must be at least 2 for meaningful quantization.")
 
-        med_filt_size = max(4, self._raw_image.width // 100)
-        if med_filt_size % 2 == 0:
-            med_filt_size += 1
-        blur_filt_size = np.ceil(med_filt_size / 4)
-        if blur_filt_size % 2 == 0:
-            blur_filt_size += 1
         # print(f"Applying median filter with size: {med_filt_size}")
         # print(f"Applying Gaussian blur with radius: {blur_filt_size}")
 
-        gray_image = self._raw_image.convert('L')
-        denoised_image = gray_image.filter(
-            ImageFilter.MedianFilter(size=med_filt_size))
-        smoothed_image = denoised_image.filter(
-            ImageFilter.GaussianBlur(radius=blur_filt_size))
-        quantized_image = smoothed_image.quantize(
+        tmp_image = self._raw_image.convert('L')
+        if median_blur_radius > 1:
+            tmp_image = tmp_image.filter(
+                ImageFilter.MedianFilter(size=median_blur_radius))
+        if gauss_blur_radius > 1:
+            tmp_image = tmp_image.filter(
+                ImageFilter.GaussianBlur(radius=gauss_blur_radius))
+        quantized_image = tmp_image.quantize(
             colors=quantization_levels, method=Image.Quantize.MEDIANCUT)
 
         lo, hi = quantized_image.getextrema()
