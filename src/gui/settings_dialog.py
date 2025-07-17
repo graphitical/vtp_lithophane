@@ -95,7 +95,7 @@ class ProcessSettingsDialog(QDialog):
         self.quantization_levels = QSpinBox()
         self.quantization_levels.setToolTip(
             "Number of quanization levels. Set to 1 for no quantization.")
-        self.quantization_levels.setRange(1, 10)
+        self.quantization_levels.setRange(1, 5)
         self.quantization_levels.setValue(5)
         image_process_layout.addRow(
             "Quantization Levels:", self.quantization_levels)
