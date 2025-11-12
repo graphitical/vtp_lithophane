@@ -63,7 +63,8 @@ class DualViewWindow(QMainWindow):
             "Layer 2",
             "Raw Image",
         ])
-        self.variant_combo.currentIndexChanged.connect(self.update_image)
+        self.variant_combo.currentIndexChanged.connect(
+            self.set_lithophane_image)
         toolbar.addWidget(self.variant_combo)
 
     def open_file(self):
@@ -115,10 +116,23 @@ class DualViewWindow(QMainWindow):
 
             self.lithophane_image.set_physical_print_dimensions(
                 self.settings_dialog.physical_width.value())
+
+            med_rad = self.settings_dialog.median_blur_radius.value()
+            gauss_rad = self.settings_dialog.gauss_blur_radius.value()
             qlvls = self.settings_dialog.quantization_levels.value()
-            self.lithophane_image.update_image(quantization_levels=qlvls)
+            print(f"Updating image with quantization levels: {qlvls}")
+            self.lithophane_image.update_image(
+                median_blur_radius=med_rad, gauss_blur_radius=gauss_rad, quantization_levels=qlvls)
+            self.set_lithophane_image()
+
+    def set_lithophane_image(self):
+        """Set the lithophane image in the image view."""
+        if self.lithophane_image is not None:
             self.image_view.set_lithophane_image(
                 self.lithophane_image, self.variant_combo.currentText())
+        else:
+            QMessageBox.warning(
+                self, "No Image Loaded", "Please load an image first.")
 
     def open_process_settings(self):
         """Open the process settings dialog."""
