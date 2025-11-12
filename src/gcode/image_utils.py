@@ -162,6 +162,60 @@ class LithophaneImage:
 
         self._layer_images = image_to_layer_images(self._image, LUT)
 
+    def set_layer_images_from_files(self, layer1_path: str, layer2_path: str) -> None:
+        """
+        Sets the layer images directly from two image files, bypassing the normal
+        layer generation process. Both images must have the same dimensions as the
+        main image and will be used as-is for layer sampling.
+
+        Args:
+            layer1_path: Path to the first layer image file
+            layer2_path: Path to the second layer image file
+
+        Raises:
+            FileNotFoundError: If either image file does not exist
+            IOError: If images cannot be opened or processed
+            ValueError: If images have different dimensions or don't match the main image
+        """
+        # Validate files exist
+        if not os.path.exists(layer1_path):
+            raise FileNotFoundError(f"Layer 1 image file not found: {layer1_path}")
+        if not os.path.exists(layer2_path):
+            raise FileNotFoundError(f"Layer 2 image file not found: {layer2_path}")
+
+        try:
+            # Load the layer images
+            layer1_img = Image.open(layer1_path)
+            layer2_img = Image.open(layer2_path)
+
+            # Convert to RGB if needed
+            if layer1_img.mode != 'RGB':
+                layer1_img = layer1_img.convert('RGB')
+            if layer2_img.mode != 'RGB':
+                layer2_img = layer2_img.convert('RGB')
+
+            # Validate dimensions match each other
+            if layer1_img.size != layer2_img.size:
+                raise ValueError(f"Layer images must have the same dimensions. "
+                               f"Layer 1: {layer1_img.size}, Layer 2: {layer2_img.size}")
+
+            # Check if dimensions match the main image
+            if self._image is not None:
+                main_size = self._image.size
+                if layer1_img.size != main_size:
+                    print(f"Warning: Layer image dimensions {layer1_img.size} differ from main image {main_size}. "
+                          f"This may cause scaling issues during sampling.")
+
+            # Set the layer images directly
+            self._layer_images = [layer1_img.copy(), layer2_img.copy()]
+            
+            print(f"Successfully loaded layer images:")
+            print(f"  Layer 1: {layer1_path} ({layer1_img.size})")
+            print(f"  Layer 2: {layer2_path} ({layer2_img.size})")
+
+        except Exception as e:
+            raise IOError(f"Could not load layer images: {e}")
+
     def _quantize_image(self, median_blur_radius: int = 0, gauss_blur_radius: int = 0, quantization_levels: int = 2, bounds: tuple = (0, 255)) -> None:
         """
         Grayscales and quantizes the image to the specified number of levels.

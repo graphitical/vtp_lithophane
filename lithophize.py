@@ -13,14 +13,21 @@ from src.gcode.parameters import PrintParameters
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser for the lithophize program."""
     parser = argparse.ArgumentParser(
-        description='VTP Lithophane Generator - Create 3D printable lithophanes with Viscous Thread Printing (VTP) method.',
+        description='VTP Lithophane Generator - Create 3D printable lithophanes with Viscous Thread Printing (VTP) method. '
+                   'You can either provide a single image for automatic layer generation or two pre-generated layer images.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
     # Required arguments
     required = parser.add_argument_group('Required parameters')
-    required.add_argument('-i', '--image', required=True, type=str,
-                          help='Path to the input image file')
+    
+    # Create mutually exclusive group for image input options
+    image_group = required.add_mutually_exclusive_group(required=True)
+    image_group.add_argument('-i', '--image', type=str,
+                          help='Path to the input image file (for automatic layer generation)')
+    image_group.add_argument('--layer-images', nargs=2, metavar=('LAYER1', 'LAYER2'), type=str,
+                          help='Paths to two pre-generated layer images (LAYER1 LAYER2)')
+    
     required.add_argument('-w', '--width', required=True, type=float,
                           help='Physical print width in mm')
     required.add_argument('-o', '--output', required=True, type=str,
@@ -94,11 +101,20 @@ def parse_bed_size(bed_size_str: str) -> tuple[float, float]:
 
 def validate_files(args) -> None:
     """Validate that all required files exist."""
-    files_to_check = [
-        ('image', args.image),
+    files_to_check = []
+    
+    # Check image files based on which option is used
+    if args.image:
+        files_to_check.append(('image', args.image))
+    elif args.layer_images:
+        files_to_check.append(('layer image 1', args.layer_images[0]))
+        files_to_check.append(('layer image 2', args.layer_images[1]))
+    
+    # Add G-code files
+    files_to_check.extend([
         ('start G-code', args.start_gcode),
         ('end G-code', args.end_gcode)
-    ]
+    ])
 
     for file_type, file_path in files_to_check:
         if not os.path.exists(file_path):
@@ -127,12 +143,16 @@ def main():
         # Parse line spacing list
         line_spacings = parse_line_spacing_list(args.line_spacing_list)
 
-        print(f"Processing image: {args.image}")
+        if args.image:
+            print(f"Processing image: {args.image}")
+        else:
+            print(f"Using layer images: {args.layer_images[0]} and {args.layer_images[1]}")
         print(f"Output G-code will be saved to: {args.output}")
 
         # Create PrintParameters object
+        image_filepath = args.image if args.image else args.layer_images[0]  # Use first layer image for path reference
         params = PrintParameters(
-            image_filepath=args.image,
+            image_filepath=image_filepath,
             physical_print_width_mm=args.width,
             num_layers=args.layers,
             v_star_hd=args.v_star_hd,
@@ -163,6 +183,14 @@ def main():
             filepath=params.image_filepath,
             physical_print_width_mm=params.physical_print_width_mm
         )
+
+        # Handle layer images based on input type
+        if args.layer_images:
+            # Use provided layer images directly
+            lithophane_image.set_layer_images_from_files(args.layer_images[0], args.layer_images[1])
+        else:
+            # Generate layer images automatically from single input
+            lithophane_image.update_image()
 
         # Generate G-code
         print("Generating G-code...")
